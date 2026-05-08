@@ -63,7 +63,7 @@ export function Profile() {
 
         <div className="mt-4 flex flex-col items-center gap-2">
           <div className="w-12 h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full"></div>
-          <p className="text-[10px] font-black text-neutral-300 dark:text-neutral-700 uppercase tracking-widest">سوقي اليمن - الإصدار 1.0.2</p>
+          <p className="text-[10px] font-black text-neutral-300 dark:text-neutral-700 uppercase tracking-widest">كم سعره اليمن - الإصدار 1.0.2</p>
         </div>
       </div>
     </Layout>

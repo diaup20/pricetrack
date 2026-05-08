@@ -11,43 +11,90 @@ interface CategoryGridProps {
 }
 
 export function CategoryGrid({ categories, products }: CategoryGridProps) {
-  const getStats = (categoryId: string): CategoryStats => {
+  const getCategoryData = (categoryId: string) => {
     const catProducts = products.filter(p => p.categoryId === categoryId);
+    const latestUpdate = catProducts.length > 0 
+      ? Math.max(...catProducts.map(p => p.lastUpdatedAt?.seconds || 0))
+      : 0;
+
     return {
-      total: catProducts.length,
+      count: catProducts.length,
       up: catProducts.filter(p => p.trend === 'up').length,
       down: catProducts.filter(p => p.trend === 'down').length,
-      stable: catProducts.filter(p => p.trend === 'stable').length,
+      latestUpdate: latestUpdate > 0 ? new Date(latestUpdate * 1000) : null
     };
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {categories.map((cat) => {
-        const stats = getStats(cat.id);
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+      {categories.map((cat, index) => {
+        const data = getCategoryData(cat.id);
+        const timeAgo = data.latestUpdate ? data.latestUpdate.toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' }) : null;
+
         return (
-          <Link key={cat.id} to={`/category/${cat.id}`}>
+          <Link key={cat.id} to={`/category/${cat.id}`} className="block h-full">
             <motion.div
-              whileHover={{ y: -4, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              whileHover={{ y: -6, scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
-              className="bg-white dark:bg-neutral-900 p-5 rounded-[32px] shadow-sm border border-neutral-100 dark:border-white/5 flex flex-col gap-3 h-full transition-all group"
+              className="relative h-full flex flex-col p-5 md:p-6 bg-white dark:bg-neutral-900 rounded-[32px] md:rounded-[40px] border border-neutral-100 dark:border-white/5 shadow-sm hover:shadow-2xl dark:hover:shadow-none transition-all duration-500 overflow-hidden group"
             >
-              <div className="flex items-center justify-between">
-                <div className="bg-neutral-50 dark:bg-neutral-800 p-2.5 rounded-2xl text-2xl shadow-inner group-hover:bg-primary-50 dark:group-hover:bg-primary-500/10 transition-colors">
-                  {cat.icon || '📦'}
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/5 rounded-full -mr-12 -mt-12 transition-transform duration-700 group-hover:scale-150" />
+              
+              <div className="relative z-10 flex flex-col h-full gap-4">
+                <div className="flex items-start justify-between">
+                  <div className="w-14 h-14 md:w-16 md:h-16 flex items-center justify-center bg-neutral-50 dark:bg-neutral-800 rounded-2xl md:rounded-3xl text-2xl md:text-3xl shadow-inner group-hover:bg-primary-500 transition-all duration-500 group-hover:text-white">
+                    <span className="group-hover:filter group-hover:brightness-0 group-hover:invert">
+                      {cat.icon || '📦'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex flex-col items-end gap-1.5">
+                    {data.up > 0 && (
+                      <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-100/50 dark:border-red-500/10">
+                        <ArrowUp size={10} className="text-red-500" />
+                        <span className="text-[10px] font-black text-red-600 dark:text-red-400">{data.up}</span>
+                      </div>
+                    )}
+                    {data.down > 0 && (
+                      <div className="flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-lg border border-green-100/50 dark:border-green-500/10">
+                        <ArrowDown size={10} className="text-green-500" />
+                        <span className="text-[10px] font-black text-green-600 dark:text-green-400">{data.down}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="p-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowLeft size={14} className="text-primary-500" />
+                
+                <div className="mt-auto flex flex-col gap-1">
+                  <h3 className="font-display font-black text-neutral-900 dark:text-white text-base md:text-lg tracking-tight group-hover:text-primary-500 transition-colors">
+                    {cat.name}
+                  </h3>
+                  
+                  <div className="flex flex-col gap-2 mt-1">
+                    <div className="flex items-center gap-2">
+                       <span className="text-[10px] md:text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest leading-none">
+                        {data.count} أصناف
+                      </span>
+                      {timeAgo && (
+                        <>
+                          <span className="h-1 w-1 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+                          <div className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+                            <span className="text-[9px] md:text-[10px] font-black text-primary-500 uppercase tracking-wider">{timeAgo}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="mt-1">
-                <h3 className="font-display font-black text-neutral-800 dark:text-neutral-100 truncate text-[15px]">{cat.name}</h3>
-                <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 mt-0.5 tracking-wider uppercase">{stats.total.toLocaleString('en-US')} منتجات</p>
-              </div>
-              <div className="flex flex-wrap gap-1 mt-auto pt-2">
-                <MiniStat count={stats.up} color="text-red-500" icon={<ArrowUp size={8} />} />
-                <MiniStat count={stats.down} color="text-green-500" icon={<ArrowDown size={8} />} />
-                <MiniStat count={stats.stable} color="text-blue-500" icon={<Minus size={8} />} />
+
+              <div className="absolute bottom-4 left-6 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
+                <div className="bg-primary-500 text-white p-1.5 rounded-full shadow-lg">
+                  <ArrowLeft size={14} />
+                </div>
               </div>
             </motion.div>
           </Link>
@@ -57,12 +104,4 @@ export function CategoryGrid({ categories, products }: CategoryGridProps) {
   );
 }
 
-function MiniStat({ count, color, icon }: { count: number; color: string; icon: React.ReactNode }) {
-  if (count === 0) return null;
-  return (
-    <div className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/50 dark:border-white/5", color)}>
-      {icon}
-      <span className="text-[8px] font-black">{count.toLocaleString('en-US')}</span>
-    </div>
-  );
-}
+

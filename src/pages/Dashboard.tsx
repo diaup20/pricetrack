@@ -3,19 +3,35 @@ import { useData } from '../contexts/DataContext';
 import { ExchangeRateWidget } from '../components/ExchangeRateWidget';
 import { CategoryGrid } from '../components/CategoryGrid';
 import { Layout } from '../components/Layout';
-import { Package, LineChart, ShieldAlert } from 'lucide-react';
+import { Package, LineChart, ShieldAlert, History, TrendingUp } from 'lucide-react';
 
 export function Dashboard() {
   const { categories, products, exchangeRates } = useData();
+
+  const latestProductUpdate = products.length > 0 
+    ? Math.max(...products.map(p => p.lastUpdatedAt?.seconds || 0))
+    : 0;
+  
+  const lastUpdateDate = latestProductUpdate > 0 ? new Date(latestProductUpdate * 1000) : null;
 
   return (
     <Layout>
       <div className="flex flex-col gap-8">
         {/* Hero / Header */}
-        <header className="flex flex-col gap-1.5 px-1 py-2">
-          <h2 className="text-3xl font-display font-black text-neutral-900 dark:text-white tracking-tight leading-tight transition-colors">
-            سوق الأسعار <span className="text-primary-500">اليمني</span>
-          </h2>
+        <header className="flex flex-col gap-2 px-1 py-1">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[28px] md:text-3xl font-display font-black text-neutral-900 dark:text-white tracking-tight leading-tight transition-colors">
+              سوق الأسعار <span className="text-primary-500">اليمني</span>
+            </h2>
+            {lastUpdateDate && (
+              <div className="flex items-center gap-2 bg-primary-50 dark:bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-100 dark:border-primary-500/10">
+                <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-wider">
+                  محدث {lastUpdateDate.toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            )}
+          </div>
           <p className="text-sm font-medium text-neutral-400 dark:text-neutral-500 transition-colors">تابع تحركات السوق والعملات لحظة بلحظة</p>
         </header>
 
@@ -25,7 +41,7 @@ export function Dashboard() {
           <ExchangeRateWidget rates={exchangeRates} />
         </div>
 
-        {/* Quick Stats Summary */}
+        {/* Quick Stats Summary - Hidden by user request 
         <div className="grid grid-cols-2 gap-4">
           <StatSummaryBox 
             label="إجمالي الأصناف" 
@@ -39,16 +55,50 @@ export function Dashboard() {
             isHighlight
           />
         </div>
+        */}
 
         {/* Categories Section */}
-        <div>
-          <div className="flex items-center justify-between mb-5 px-1">
-            <h3 className="text-xl font-display font-black text-neutral-800 dark:text-neutral-100 transition-colors">الأقسام الرئيسية</h3>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h3 className="text-xl font-display font-black text-neutral-800 dark:text-neutral-100 transition-colors flex items-center gap-2">
+              <div className="p-1.5 bg-primary-500 text-white rounded-lg">
+                <TrendingUp size={16} />
+              </div>
+              الأقسام الرئيسية
+            </h3>
             <div className="h-px flex-1 mx-4 bg-neutral-100 dark:bg-white/5 hidden sm:block"></div>
             <span className="text-[10px] font-black text-neutral-300 dark:text-neutral-600 uppercase tracking-widest bg-neutral-50 dark:bg-neutral-900 px-2 py-1 rounded-lg transition-all">استعراض</span>
           </div>
           <CategoryGrid categories={categories} products={products} />
         </div>
+
+        {/* Global Last Update Footer - PROMINENT */}
+        {lastUpdateDate && (
+          <div className="mt-4 mb-20 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-neutral-900 dark:bg-white rounded-[40px] transform transition-transform duration-700 group-hover:scale-[1.02] shadow-2xl"></div>
+            <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12 transition-transform duration-700 group-hover:scale-150 text-white dark:text-neutral-900">
+              <History size={120} />
+            </div>
+            <div className="relative z-10 p-10 flex flex-col items-center text-center gap-4">
+              <div className="px-5 py-2 bg-white/10 dark:bg-neutral-900/10 rounded-full border border-white/10 dark:border-neutral-900/10 backdrop-blur-md">
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary-400">تحديثات البيانات والأسعار</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <h4 className="text-2xl md:text-4xl font-display font-black text-white dark:text-neutral-900 tracking-tight">
+                  آخر تحديث: {lastUpdateDate.toLocaleDateString('ar-YE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </h4>
+                <div className="flex items-center justify-center gap-3 mt-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500">مزامنة نشطة</span>
+                  </div>
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/20 dark:bg-neutral-900/20" />
+                  <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500">تم في {lastUpdateDate.toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Warning / Memo */}
         <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 p-4 rounded-2xl flex gap-3 items-start transition-colors">

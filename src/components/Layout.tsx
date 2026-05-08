@@ -56,7 +56,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="bg-primary-600 text-white p-1.5 rounded-xl rotate-3 shadow-lg shadow-primary-200 dark:shadow-primary-900/20">
              <Package size={20} />
           </div>
-          سوقي
+          كم سعره
         </h1>
         <div className="flex items-center gap-2">
             <button 

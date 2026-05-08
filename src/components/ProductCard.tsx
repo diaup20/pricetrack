@@ -60,7 +60,15 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-display font-bold text-lg leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
-            <TrendIndicator trend={product.trend} className="w-5 h-5 flex-shrink-0" />
+            <div className="flex flex-col items-center gap-1">
+              <TrendIndicator trend={product.trend} className="w-7 h-7 flex-shrink-0 shadow-lg shadow-neutral-100 dark:shadow-none" />
+              <span className={cn(
+                "text-[7px] font-black uppercase tracking-tighter",
+                product.trend === 'up' ? "text-red-500" : product.trend === 'down' ? "text-green-500" : "text-neutral-300"
+              )}>
+                {product.trend === 'up' ? 'مرتفع' : product.trend === 'down' ? 'منخفض' : 'مستقر'}
+              </span>
+            </div>
           </div>
           <p className="text-xs text-neutral-400 dark:text-neutral-500 font-medium line-clamp-1 mt-0.5">{product.description || 'لا يوجد وصف متاح لهذا المنتج'}</p>
           <div className="flex flex-wrap gap-1.5 mt-2">
@@ -111,10 +119,12 @@ export function ProductCard({ product }: ProductCardProps) {
         <PriceBox label="تجزئة" price={currentPrices.retail} type="retail" />
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500 border-t border-dashed border-neutral-100 dark:border-white/5 pt-2 transition-colors">
-        <div className="flex items-center gap-1">
-          <Calendar size={12} />
-          <span>آخر تحديث: {product.lastUpdatedAt ? format(new Date(product.lastUpdatedAt.seconds * 1000), 'd MMM yyyy', { locale: ar }) : 'غير متوفر'}</span>
+      <div className="flex items-center justify-between text-[11px] border-t border-dashed border-neutral-100 dark:border-white/5 pt-2 transition-colors">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+          <Calendar size={12} className="text-primary-500" />
+          <span className="font-bold text-neutral-600 dark:text-neutral-400">
+            تحديث: <span className="text-neutral-900 dark:text-white">{product.lastUpdatedAt ? format(new Date(product.lastUpdatedAt.seconds * 1000), 'd MMM yyyy', { locale: ar }) : 'جديد'}</span>
+          </span>
         </div>
       </div>
     </motion.div>
