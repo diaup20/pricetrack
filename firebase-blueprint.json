@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "Category": {
+      "title": "Category",
+      "description": "Product category (e.g., Wheat, Rice, Sugar)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Unit": {
+      "title": "Unit",
+      "description": "Measurement unit (e.g., kg, Liter)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "Packaging type (e.g., Bag, Box)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Brand": {
+      "title": "Brand",
+      "description": "Product brand",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A food commodity product with prices",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "unitId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "brandId": { "type": "string" },
+        "agentPrice": { "type": "number" },
+        "wholesalePrice": { "type": "number" },
+        "retailPrice": { "type": "number" },
+        "previousRetailPrice": { "type": "number" },
+        "trend": { "type": "string", "enum": ["up", "down", "stable"] },
+        "imageUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "lastUpdatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "categoryId", "agentPrice", "wholesalePrice", "retailPrice"]
+    },
+    "ExchangeRate": {
+      "title": "Exchange Rate",
+      "description": "Currency exchange rate",
+      "type": "object",
+      "properties": {
+        "fromCurrency": { "type": "string" },
+        "toCurrency": { "type": "string" },
+        "rate": { "type": "number" },
+        "previousRate": { "type": "number" },
+        "trend": { "type": "string", "enum": ["up", "down", "stable"] },
+        "lastUpdatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromCurrency", "toCurrency", "rate"]
+    }
+  },
+  "firestore": {
+    "/categories/{categoryId}": { "schema": "Category", "description": "Categories for grouping products" },
+    "/units/{unitId}": { "schema": "Unit", "description": "Measurement units" },
+    "/packages/{packageId}": { "schema": "Package", "description": "Packaging types" },
+    "/brands/{brandId}": { "schema": "Brand", "description": "Product brands" },
+    "/products/{productId}": { "schema": "Product", "description": "Individual product data with prices" },
+    "/exchangeRates/{rateId}": { "schema": "ExchangeRate", "description": "Currency exchange rates" },
+    "/admins/{userId}": { "schema": { "type": "object", "properties": { "role": { "type": "string" } } }, "description": "Admin users" }
+  }
+}

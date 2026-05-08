@@ -1,0 +1,1645 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useData } from '../contexts/DataContext';
+import { Layout } from '../components/Layout';
+import { loginWithGoogle, db, auth } from '../lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  deleteDoc, 
+  serverTimestamp, 
+  onSnapshot, 
+  setDoc 
+} from 'firebase/firestore';
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  LogIn, 
+  Settings, 
+  Package, 
+  Tags, 
+  Box, 
+  Ruler, 
+  TrendingUp, 
+  ShieldCheck, 
+  LineChart, 
+  Users as UsersIcon, 
+  Search as SearchIcon,
+  X,
+  History,
+  SlidersHorizontal,
+  Download,
+  Upload,
+  FileText,
+  Image as ImageIcon
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Product, Trend, ProductVariant } from '../types';
+import { cn } from '../lib/utils';
+import * as XLSX from 'xlsx';
+
+export function Admin() {
+  const { user, isAdmin, loading } = useAuth();
+  const { categories, brands, units, packages, products, exchangeRates } = useData();
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'rates' | 'meta' | 'users'>('overview');
+
+  const navigation = [
+    { id: 'overview', label: 'نظرة عامة', icon: <LineChart size={18} /> },
+    { id: 'products', label: 'المنتجات', icon: <Package size={18} /> },
+    { id: 'rates', label: 'الصرف', icon: <TrendingUp size={18} /> },
+    { id: 'meta', label: 'الإعدادات', icon: <Settings size={18} /> },
+    { id: 'users', label: 'المستخدمين', icon: <UsersIcon size={18} /> },
+  ];
+
+  if (loading) return <Layout><div className="text-center py-20 italic text-neutral-400">جاري التحميل...</div></Layout>;
+
+  if (!user) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-40 gap-6">
+          <div className="bg-white p-8 rounded-full shadow-2xl flex items-center justify-center">
+            <LoginIllustration />
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold">لوحة التحكم</h2>
+            <p className="text-neutral-500 mt-1">يجب تسجيل الدخول بصلاحية مدير للوصول.</p>
+          </div>
+          <button 
+            onClick={loginWithGoogle}
+            className="bg-neutral-900 text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-neutral-200"
+          >
+            <LogIn size={20} />
+            سجل دخول عبر جوجل
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <Layout>
+        <div className="text-center py-40">
+          <h2 className="text-2xl font-bold text-red-500">عفواً!</h2>
+          <p className="text-neutral-500 mt-2">ليس لديك صلاحية الوصول لهذه الصفحة.</p>
+          <p className="text-xs text-neutral-400 mt-4">بريدك: {user.email}</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="flex flex-col gap-8 pb-10">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4">
+          <div>
+            <h2 className="text-3xl font-display font-black text-neutral-900 dark:text-white tracking-tight">إدارة النظام</h2>
+            <p className="text-sm font-medium text-neutral-400 dark:text-neutral-500 mt-1 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+              مرحباً {user.displayName}، أنت في وضع الإدارة
+            </p>
+          </div>
+          <div className="flex gap-2">
+             <div className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 px-4 py-2 rounded-2xl shadow-sm text-xs font-bold text-neutral-600 dark:text-neutral-300 flex items-center gap-2 transition-colors">
+               <ShieldCheck size={14} className="text-blue-500" />
+               مسؤول نظام
+             </div>
+          </div>
+        </header>
+
+        <div className="flex gap-2 bg-neutral-200/40 dark:bg-neutral-900/40 p-1 rounded-[24px] overflow-x-auto no-scrollbar scroll-smooth w-full md:w-fit border border-neutral-100/50 dark:border-white/5 transition-colors sticky top-20 z-40 backdrop-blur-md">
+          {navigation.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as any)}
+              className={cn(
+                "flex items-center gap-2 px-4 md:px-6 py-3 rounded-[20px] text-[11px] md:text-[13px] font-bold transition-all whitespace-nowrap",
+                activeTab === item.id 
+                  ? "bg-white dark:bg-neutral-800 shadow-sm text-neutral-900 dark:text-white" 
+                  : "text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/30 dark:hover:bg-neutral-800/30"
+              )}
+            >
+              <span className={cn(
+                "transition-all duration-300 p-1 md:p-1.5 rounded-lg shrink-0", 
+                activeTab === item.id ? "bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500"
+              )}>
+                {React.cloneElement(item.icon as React.ReactElement, { size: 14 })}
+              </span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="min-h-[400px]"
+        >
+          {activeTab === 'overview' && (
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard label="المنتجات" value={products.length} color="bg-blue-500" icon={<Package size={20} />} trend={products.some(p => p.trend !== 'stable') ? 'up' : 'stable'} />
+                <StatCard label="الأقسام" value={categories.length} color="bg-purple-500" icon={<Tags size={20} />} />
+                <StatCard label="أسعار الصرف" value={exchangeRates.length} color="bg-green-500" icon={<TrendingUp size={20} />} trend="up" />
+                <StatCard label="تحديثات اليوم" value={products.filter(p => p.trend !== 'stable').length} color="bg-orange-500" icon={<LineChart size={20} />} trend="up" />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <RecentActivity products={products} categories={categories} />
+                </div>
+                
+                <div className="flex flex-col gap-6">
+                  <div className="bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm flex flex-col gap-4">
+                    <h3 className="font-bold flex items-center gap-2 text-neutral-900 dark:text-white text-sm">
+                      <ShieldCheck size={18} className="text-blue-500" /> 
+                      إجراءات النظام الحساسة
+                    </h3>
+                    <p className="text-[10px] text-neutral-400 font-medium">هذه العمليات تؤثر على جميع البيانات بشكل دائم وتتطلب الحذر عند الاستخدام</p>
+                    <div className="flex flex-col gap-3 pt-2">
+                      <ActionButton 
+                        onClick={async () => {
+                          const percent = window.prompt('أدخل نسبة الزيادة المئوية لجميع المنتجات (مثلاً 5):');
+                          if (percent && !isNaN(Number(percent))) {
+                            const factor = 1 + (Number(percent) / 100);
+                            if (window.confirm(`سيتم زيادة أسعار ${products.length} منتج بنسبة ${percent}%، هل أنت متأكد؟`)) {
+                              for (const p of products) {
+                                await updateDoc(doc(db, 'products', p.id), {
+                                  retailPrice: Math.round(p.retailPrice * factor),
+                                  previousRetailPrice: p.retailPrice,
+                                  trend: 'up',
+                                  lastUpdatedAt: serverTimestamp()
+                                });
+                              }
+                              alert('تم تحديث جميع الأسعار بنجاح');
+                            }
+                          }
+                        }}
+                        label="تحديث كافة الأسعار (%)"
+                        icon={<TrendingUp size={16} />}
+                        variant="neutral"
+                      />
+
+                      <ActionButton 
+                        onClick={async () => {
+                          if (window.confirm('تحذير: سيتم حذف كافة المنتجات من النظام نهائياً! هل أنت متأكد؟')) {
+                            const confirmed = window.confirm('هل أنت متأكد حقاً؟ لا يمكن التراجع عن هذه الخطوة.');
+                            if (confirmed) {
+                              for (const p of products) await deleteDoc(doc(db, 'products', p.id));
+                              alert('تم حذف جميع المنتجات');
+                            }
+                          }
+                        }}
+                        label="حذف كافة المنتجات"
+                        icon={<Trash2 size={16} />}
+                        variant="danger"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-primary-600 p-6 rounded-[32px] text-white overflow-hidden relative group">
+                    <div className="absolute -bottom-4 -left-4 p-8 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-700 font-black text-8xl">★</div>
+                    <div className="relative z-10 flex flex-col gap-4">
+                      <h4 className="font-display font-black text-lg">نصيحة الإدارة</h4>
+                      <p className="text-xs font-medium text-primary-100 leading-relaxed">
+                        تأكد من تحديث أسعار الصرف بانتظام لضمان دقة هوامش الربح المقدرة في النظام لمختلف العملات.
+                      </p>
+                      <button 
+                        onClick={() => setActiveTab('rates')}
+                        className="bg-white/20 hover:bg-white/30 transition-all text-white py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider backdrop-blur-md border border-white/10"
+                      >
+                        انتقل للصرف الآن
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'products' && (
+            <ProductManager products={products} categories={categories} brands={brands} units={units} packages={packages} />
+          )}
+          {activeTab === 'rates' && (
+            <ExchangeRateManager rates={exchangeRates} />
+          )}
+          {activeTab === 'meta' && (
+            <MetaManager 
+              categories={categories} 
+              brands={brands} 
+              units={units} 
+              packages={packages} 
+            />
+          )}
+          {activeTab === 'users' && <UserManager />}
+        </motion.div>
+      </div>
+    </Layout>
+  );
+}
+
+function StatCard({ label, value, color, icon, trend }: { label: string; value: number; color: string; icon: React.ReactNode; trend?: string }) {
+  return (
+    <div className="bg-white dark:bg-neutral-900 p-4 md:p-6 rounded-[28px] md:rounded-[32px] shadow-sm border border-neutral-100 dark:border-white/5 relative overflow-hidden group hover:shadow-xl dark:hover:shadow-none hover:shadow-neutral-200/50 hover:-translate-y-1 transition-all duration-500">
+      <div className={cn("absolute -top-4 -right-4 p-8 opacity-[0.05] group-hover:opacity-10 transition-opacity rotate-12 transition-transform duration-700 font-mono text-[60px] md:text-[80px]", color.replace('bg-', 'text-'))}>
+        {icon}
+      </div>
+      <div className="flex justify-between items-start mb-3 md:mb-4">
+        <div className={cn("inline-flex p-2.5 md:p-3 rounded-xl md:rounded-2xl shadow-sm", color.replace('bg-', 'bg-opacity-10 text-').replace('500', '600'))}>
+          {React.cloneElement(icon as React.ReactElement, { size: 16 })}
+        </div>
+        {trend && (
+          <div className={cn(
+            "text-[9px] md:text-[10px] font-black px-1.5 md:px-2 py-0.5 md:py-1 rounded-lg flex items-center gap-1",
+            trend === 'up' ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400" : "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400"
+          )}>
+            {trend === 'up' ? <TrendingUp size={8} /> : <TrendingUp size={8} className="rotate-180" />}
+            {trend === 'up' ? 'نشط' : 'مستقر'}
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] md:text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{label}</p>
+      <div className="flex items-baseline gap-1 md:gap-2 mt-0.5 md:mt-1">
+        <p className="text-2xl md:text-4xl font-accent font-black text-neutral-900 dark:text-white leading-tight">{value.toLocaleString('en-US')}</p>
+        <span className="text-[8px] md:text-[10px] font-bold text-neutral-300 dark:text-neutral-600 uppercase tracking-wider">إجمالي</span>
+      </div>
+    </div>
+  );
+}
+
+function RecentActivity({ products, categories }: { products: Product[], categories: any[] }) {
+  const recent = [...products]
+    .sort((a, b) => {
+      const dateA = a.lastUpdatedAt?.seconds || 0;
+      const dateB = b.lastUpdatedAt?.seconds || 0;
+      return dateB - dateA;
+    })
+    .slice(0, 5);
+
+  return (
+    <div className="bg-white dark:bg-neutral-900 p-5 md:p-8 rounded-[28px] md:rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm flex flex-col gap-5 md:gap-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display font-black text-base md:text-lg flex items-center gap-2 dark:text-white">
+          <div className="p-1.5 md:p-2 bg-orange-500 text-white rounded-lg">
+            <LineChart size={14} />
+          </div>
+          آخر نشاط فوري
+        </h3>
+        <span className="hidden sm:inline-block text-[10px] font-black text-neutral-400 uppercase tracking-widest bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 rounded-full">المخزون</span>
+      </div>
+
+      <div className="flex flex-col">
+        {recent.map((p, idx) => {
+          const cat = categories.find(c => c.id === p.categoryId);
+          return (
+            <div key={p.id} className={cn(
+              "flex items-center justify-between py-3.5 md:py-4 group transition-all",
+              idx !== recent.length - 1 && "border-bottom border-dashed border-neutral-100 dark:border-white/5 border-b"
+            )}>
+              <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                <div className="text-base md:text-lg w-9 h-9 md:w-11 md:h-11 flex items-center justify-center bg-neutral-50 dark:bg-neutral-800 rounded-xl group-hover:bg-primary-50 dark:group-hover:bg-primary-500/10 transition-colors shrink-0">
+                  {cat?.icon || '📦'}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[13px] md:text-sm font-bold text-neutral-800 dark:text-neutral-100 truncate">{p.name}</span>
+                  <span className="text-[9px] md:text-[10px] font-medium text-neutral-400 uppercase tracking-wider">
+                    {cat?.name || 'بدون قسم'} • {p.lastUpdatedAt ? new Date(p.lastUpdatedAt.seconds * 1000).toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' }) : 'مُحدث'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                <div className="flex flex-col items-end">
+                   <span className="text-[13px] md:text-sm font-black text-neutral-900 dark:text-white leading-none mb-1">{p.retailPrice.toLocaleString()}</span>
+                   <div className="flex items-center gap-1">
+                      {p.trend === 'up' && <TrendingUp size={8} className="text-red-500" />}
+                      {p.trend === 'down' && <TrendingUp size={8} className="text-green-500 rotate-180" />}
+                      <span className={cn(
+                        "text-[8px] md:text-[9px] font-bold uppercase",
+                        p.trend === 'up' ? "text-red-500" : (p.trend === 'down' ? "text-green-500" : "text-neutral-300")
+                      )}>
+                        {p.trend === 'up' ? 'سعر مرتفع' : (p.trend === 'down' ? 'سعر منخفض' : 'سعر مستقر')}
+                      </span>
+                   </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {recent.length === 0 && (
+          <div className="py-12 text-center text-[11px] font-medium text-neutral-400 italic">لا يوجد نشاط مسجل حتى الآن</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActionButton({ onClick, label, icon, variant }: { onClick: () => void; label: string; icon: React.ReactNode; variant: 'neutral' | 'danger' }) {
+  const styles = {
+    neutral: "bg-neutral-50 text-neutral-900 hover:bg-neutral-100",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100",
+  };
+
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "w-full text-right p-4 rounded-2xl text-sm font-bold flex items-center justify-between transition-all active:scale-[0.98] group",
+        styles[variant]
+      )}
+    >
+      <span>{label}</span>
+      <div className={cn("p-2 rounded-xl bg-white shadow-sm border border-neutral-100 transition-transform group-hover:scale-110", variant === 'danger' ? "text-red-500" : "text-blue-500")}>
+        {icon}
+      </div>
+    </button>
+  );
+}
+
+function UserManager() {
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const unsubAdmins = onSnapshot(collection(db, 'admins'), (s) => {
+      setAdmins(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    const unsubUsers = onSnapshot(collection(db, 'users'), (s) => {
+      setUsers(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => { unsubAdmins(); unsubUsers(); };
+  }, []);
+
+  const filteredUsers = users.filter(u => 
+    u.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    u.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleAdmin = async (userId: string, email: string, currentIsAdmin: boolean) => {
+    if (email === 'abdsharki20@gmail.com') return alert('لا يمكن تعديل صلاحيات المدير الرئيسي!');
+    if (currentIsAdmin) {
+      if (window.confirm('هل تريد إزالة صلاحيات المسؤول؟')) {
+        await deleteDoc(doc(db, 'admins', userId));
+      }
+    } else {
+      if (window.confirm('هل تريد منح هذا المستخدم صلاحيات المسؤول؟')) {
+        await setDoc(doc(db, 'admins', userId), { email, role: 'admin', addedAt: serverTimestamp() });
+      }
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-neutral-900 p-4 md:p-5 rounded-[24px] md:rounded-[32px] border border-neutral-100 dark:border-white/5 flex flex-col gap-5 md:gap-6 shadow-sm">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <h3 className="text-lg md:text-xl font-display font-black flex items-center gap-2 md:gap-3 dark:text-white w-full md:w-auto">
+          <div className="p-1.5 md:p-2 bg-blue-500 text-white rounded-lg">
+            <UsersIcon size={16} />
+          </div>
+          إدارة المستخدمين
+          <span className="bg-neutral-50 dark:bg-neutral-800 text-neutral-400 text-[9px] md:text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider">{users.length}</span>
+        </h3>
+        <div className="relative w-full md:w-64">
+           <input 
+             type="text" 
+             placeholder="ابحث عن مستخدم..." 
+             className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-xl md:rounded-2xl px-4 py-3 text-[11px] font-bold pr-11 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-all dark:text-white shadow-sm"
+             value={searchQuery}
+             onChange={e => setSearchQuery(e.target.value)}
+           />
+           <SearchIcon size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400" />
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredUsers.map((u) => {
+          const isUserAdmin = admins.some(a => a.id === u.id);
+          return (
+            <div key={u.id} className="bg-white dark:bg-neutral-900 p-5 rounded-[28px] border border-neutral-100 dark:border-white/5 flex flex-col gap-4 shadow-sm hover:shadow-lg dark:hover:shadow-none hover:border-neutral-200 dark:hover:border-primary-500/30 transition-all group">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <img src={u.photoURL} alt="" className="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 shadow-sm" />
+                  {isUserAdmin && (
+                    <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white p-1 rounded-lg shadow-sm border-2 border-white dark:border-neutral-900">
+                      <ShieldCheck size={10} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-bold truncate text-neutral-800 dark:text-neutral-100">
+                    {u.displayName}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">{u.email}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-dashed border-neutral-100 dark:border-white/5 transition-colors">
+                <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">الحالة: {isUserAdmin ? 'مسؤول' : 'مستخدم'}</span>
+                <button 
+                  onClick={() => toggleAdmin(u.id, u.email, isUserAdmin)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-bold transition-all",
+                    isUserAdmin ? "bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20" : "bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20"
+                  )}
+                  disabled={u.email === 'abdsharki20@gmail.com'}
+                >
+                  {isUserAdmin ? 'إبطال الصلاحية' : 'ترقية لمسؤول'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Arabic normalization helper for more robust matching
+const normalizeArabic = (text: string) => {
+  if (!text) return "";
+  return text
+    .trim()
+    // Replace Alif variants
+    .replace(/[أإآ]/g, "ا")
+    // Replace Ta Marbuta with Ha
+    .replace(/ة/g, "ه")
+    // Replace Alef Maqsura with Ya
+    .replace(/ى/g, "ي")
+    // Remove Arabic diacritics (Harakat)
+    .replace(/[\u064B-\u065F]/g, "")
+    // Remove zero-width characters and unusual whitespace
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+};
+
+function ProductManager({ products, categories, brands, units, packages }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importTotal, setImportTotal] = useState(0);
+
+  const filtered = products.filter((p: Product) => {
+    const matchesSearch = !searchQuery || normalizeArabic(p.name).includes(normalizeArabic(searchQuery));
+    const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+      await deleteDoc(doc(db, 'products', id));
+    }
+  };
+
+  const handleExport = () => {
+    // Prepare data for Excel based on user requested fields
+    const exportData = products.map((p: any) => ({
+      'الاسم': p.name,
+      'الوصف': p.description || '',
+      'القسم': categories.find((c: any) => c.id === p.categoryId)?.name || '',
+      'العلامة': brands.find((b: any) => b.id === p.brandId)?.name || '',
+      'الحجم': units.find((u: any) => u.id === p.unitId)?.name || '',
+      'العبوة': packages.find((pk: any) => pk.id === p.packageId)?.name || '',
+      'سعر الوكيل': p.agentPrice,
+      'سعر الجملة': p.wholesalePrice,
+      'السعر (تجزئة)': p.retailPrice,
+      'الصورة': p.imageUrl || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "المنتجات");
+    
+    // Set column widths for better readability
+    const colWidths = [
+      { wch: 25 }, // Name
+      { wch: 30 }, // Description
+      { wch: 15 }, // Category
+      { wch: 15 }, // Brand
+      { wch: 15 }, // Unit
+      { wch: 15 }, // Package
+      { wch: 12 }, // Agent Price
+      { wch: 12 }, // Wholesale Price
+      { wch: 12 }, // Retail Price
+      { wch: 25 }, // Image URL
+    ];
+    ws['!cols'] = colWidths;
+
+    XLSX.writeFile(wb, 'سوق_اليمن_المنتجات.xlsx');
+  };
+
+  const downloadTemplate = () => {
+    const templateData = [{
+      'الاسم': 'مثال: علبة قشطة السعيد',
+      'الوصف': 'وصف اختياري هنا',
+      'القسم': 'اسم القسم (يجب أن يكون موجوداً)',
+      'العلامة': 'اسم العلامة التجارية',
+      'الحجم': '250 جرام',
+      'العبوة': 'علبة ورق',
+      'سعر الوكيل': 500,
+      'سعر الجملة': 550,
+      'السعر (تجزئة)': 600,
+      'الصورة': 'رابط الصورة اختيارياً'
+    }];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "نموذج الاستيراد");
+    ws['!cols'] = [{ wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }];
+    XLSX.writeFile(wb, 'نموذج_استيراد_المنتجات.xlsx');
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        console.log("Starting import process for file:", file.name);
+        const buffer = event.target?.result as ArrayBuffer;
+        const data = new Uint8Array(buffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        if (!workbook.SheetNames.length) {
+          alert('الملف لا يحتوي على أوراق (Sheets)');
+          setImporting(false);
+          return;
+        }
+
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to JSON with more diagnostic logging
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" }) as any[];
+        console.log(`Successfully parsed ${jsonData.length} rows from sheet "${firstSheetName}"`);
+
+        if (!Array.isArray(jsonData) || jsonData.length === 0) {
+          alert('الملف فارغ أو لا يحتوي على بيانات صالحة');
+          if (e.target) e.target.value = '';
+          setImporting(false);
+          return;
+        }
+
+        // Validate headers before starting
+        const headers = Object.keys(jsonData[0]);
+        console.log("Detected headers:", headers);
+        
+        const nameKeys = ['الاسم', 'name', 'Title', 'Product Name', 'اسم المنتج', 'Product'];
+        const hasNameHeader = headers.some(h => 
+          nameKeys.some(nk => h.trim().toLowerCase() === nk.toLowerCase() || h.trim().includes(nk))
+        );
+
+        if (!hasNameHeader) {
+          alert(`خطأ: لم يتم العثور على عمود "الاسم" في الملف.\nالأعمدة المتوفرة: ${headers.join(', ')}`);
+          if (e.target) e.target.value = '';
+          setImporting(false);
+          return;
+        }
+
+        const confirmed = window.confirm(`تم العثور على ${jsonData.length} أسطر. هل تريد استيرادها؟ سيتم إضافة المنتجات الجديدة وتحديث الموجودة حالياً (بناءً على الاسم).`);
+        if (!confirmed) {
+          if (e.target) e.target.value = '';
+          setImporting(false);
+          return;
+        }
+
+        let importedCount = 0;
+        let updatedCount = 0;
+        let errors = 0;
+        let skippedCount = 0;
+        let missingMeta = 0;
+
+        setImportTotal(jsonData.length);
+
+        const logFirestoreError = (error: any, op: string, path: string) => {
+          const errInfo = {
+            error: error?.message || String(error),
+            operationType: op,
+            path,
+            authInfo: {
+              userId: auth.currentUser?.uid,
+              email: auth.currentUser?.email,
+              emailVerified: auth.currentUser?.emailVerified,
+            }
+          };
+          console.error(`Firestore ${op.toUpperCase()} Error at ${path}:`, errInfo);
+        };
+
+        for (let i = 0; i < jsonData.length; i++) {
+          const item = jsonData[i];
+          setImportProgress(i + 1);
+          try {
+            // Flexible value lookup with normalization
+            const findValue = (keys: string[]) => {
+              const itemKeys = Object.keys(item);
+              // Priority 1: Normalized match
+              let foundKey = itemKeys.find(itemKey => {
+                const ikNorm = normalizeArabic(itemKey);
+                return keys.some(searchKey => normalizeArabic(searchKey) === ikNorm);
+              });
+              
+              // Priority 2: Contains match
+              if (!foundKey) {
+                foundKey = itemKeys.find(itemKey => {
+                  const ikNorm = normalizeArabic(itemKey);
+                  return keys.some(searchKey => {
+                    const skNorm = normalizeArabic(searchKey);
+                    return ikNorm.includes(skNorm) || skNorm.includes(ikNorm);
+                  });
+                });
+              }
+              
+              const val = foundKey ? item[foundKey] : '';
+              return val !== undefined && val !== null ? String(val).trim() : '';
+            };
+            
+            const name = findValue(nameKeys);
+            const description = findValue(['الوصف', 'description', 'Desc', 'Details', 'الوصف العام']);
+            const catName = findValue(['القسم', 'Category', 'category', 'Section', 'Type', 'التصنيف']);
+            const brandName = findValue(['العلامة التجارية', 'العلامة', 'Brand', 'brand', 'الماركة']);
+            const unitName = findValue(['الحجم', 'الوحدة', 'Unit', 'unit', 'Size', 'القياس']);
+            const packName = findValue(['العبوة', 'Package', 'package', 'Pack', 'نوع العبوة']);
+            
+            const agentPriceStr = findValue(['وكيل', 'Agent', 'agentPrice', 'سعر الوكيل', 'سعر الموزع']);
+            const wholesalePriceStr = findValue(['جملة', 'Wholesale', 'wholesalePrice', 'سعر الجملة']);
+            const retailPriceStr = findValue(['تجزئة', 'السعر', 'Retail', 'Price', 'retailPrice', 'سعر التجزئة', 'السعر (تجزئة)', 'سعر المستهلك']);
+            const imageUrl = findValue(['رابط الصورة', 'الصورة', 'Image', 'imageUrl', 'Photo', 'الرابط']);
+
+            // Skip empty rows or example rows
+            const normalizedName = normalizeArabic(name);
+            if (!normalizedName || normalizedName.includes('مثال علبة قشطة السعيد') || normalizedName.includes('example')) {
+              if (Object.values(item).some(v => String(v).trim() !== "")) {
+                skippedCount++;
+              }
+              continue;
+            }
+
+            // Clean currency symbols and commas
+            const cleanPrice = (val: string) => {
+              if (!val) return 0;
+              const cleaned = val.replace(/[^\d.]/g, '');
+              const num = parseFloat(cleaned);
+              return isNaN(num) ? 0 : num;
+            };
+
+            const agentPrice = cleanPrice(agentPriceStr);
+            const wholesalePrice = cleanPrice(wholesalePriceStr);
+            const retailPrice = cleanPrice(retailPriceStr);
+
+            // Lookup IDs with normalization
+            const normalizedSearch = (list: any[], search: string) => {
+              if (!search) return '';
+              const searchNorm = normalizeArabic(search);
+              const found = list.find((c: any) => normalizeArabic(c.name) === searchNorm);
+              if (!found && search) {
+                missingMeta++;
+              }
+              return found?.id || '';
+            };
+
+            const categoryId = normalizedSearch(categories, catName);
+            const brandId = normalizedSearch(brands, brandName);
+            const unitId = normalizedSearch(units, unitName);
+            const packageId = normalizedSearch(packages, packName);
+
+            // Check if product already exists by normalized name
+            const existingProduct = (products as Product[]).find(p => normalizeArabic(p.name) === normalizedName);
+
+            const mappedItem = {
+              name: name.trim(),
+              description: description.trim(),
+              categoryId,
+              brandId,
+              unitId,
+              packageId,
+              agentPrice,
+              wholesalePrice,
+              retailPrice,
+              imageUrl: imageUrl || existingProduct?.imageUrl || '',
+              trend: ('stable' as Trend),
+              lastUpdatedAt: serverTimestamp()
+            };
+
+            if (existingProduct) {
+              await updateDoc(doc(db, 'products', existingProduct.id), {
+                ...mappedItem,
+                previousRetailPrice: existingProduct.retailPrice,
+                trend: retailPrice > existingProduct.retailPrice ? 'up' : (retailPrice < existingProduct.retailPrice ? 'down' : 'stable')
+              }).catch(e => {
+                logFirestoreError(e, 'update', `products/${existingProduct.id}`);
+                throw e;
+              });
+              updatedCount++;
+            } else {
+              await addDoc(collection(db, 'products'), {
+                ...mappedItem,
+                previousRetailPrice: retailPrice,
+                variants: [],
+                createdAt: serverTimestamp(),
+              }).catch(e => {
+                logFirestoreError(e, 'create', 'products');
+                throw e;
+              });
+              importedCount++;
+            }
+          } catch (rowErr) {
+            console.error(`Error importing row ${i + 1}:`, rowErr);
+            errors++;
+          }
+        }
+
+        let message = `اكتملت العملية بنجاح.`;
+        if (importedCount > 0) message += `\nتم إضافة ${importedCount} منتج جديد.`;
+        if (updatedCount > 0) message += `\nتم تحديث ${updatedCount} منتج موجود.`;
+        if (skippedCount > 0) message += `\nتم تخطي ${skippedCount} أسطر غير صالحة.`;
+        if (errors > 0) message += `\nحدث خطأ في ${errors} أسطر (راجع سجل المتصفح للمزيد من التفاصيل).`;
+        if (missingMeta > 0) message += `\nتنبيه: لم يتم العثور على تطابق لـ ${missingMeta} من الحقول الوصفية (تم تركها فارغة).`;
+        
+        alert(message);
+      } catch (err) {
+        console.error("Critical Import Error:", err);
+        alert('حدث خطأ فادح أثناء معالجة الملف: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        setImporting(false);
+        setImportProgress(0);
+        setImportTotal(0);
+        if (e.target) e.target.value = '';
+      }
+    };
+    reader.onerror = () => {
+      alert('خطأ في قراءة ملف Excel من القرص');
+      setImporting(false);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-neutral-900 p-4 md:p-6 rounded-[28px] md:rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm">
+          <div className="flex flex-col">
+            <h3 className="font-display font-black text-lg md:text-xl flex items-center gap-2 md:gap-3 dark:text-white">
+              <div className="bg-blue-500 text-white p-1.5 md:p-2 rounded-xl">
+                <Package size={18} />
+              </div>
+              إدارة المخزون ({filtered.length})
+            </h3>
+            <p className="text-[10px] md:text-xs text-neutral-400 dark:text-neutral-500 mt-1">تعديل، إضافة، استيراد وتصدير المنتجات من وإلى Excel</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <button 
+              onClick={downloadTemplate}
+              className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-3 md:px-4 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all border border-neutral-100 dark:border-white/5 shadow-sm"
+            >
+              <FileText size={14} className="text-orange-500" />
+              <span className="hidden sm:inline">تحميل النموذج</span>
+              <span className="inline sm:hidden">النموذج</span>
+            </button>
+            <label className={cn(
+              "bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-3 md:px-4 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all border border-neutral-100 dark:border-white/5 shadow-sm cursor-pointer relative overflow-hidden group",
+              importing && "opacity-80 pointer-events-none"
+            )}>
+              <Upload size={14} className={cn("text-blue-500", importing && "animate-bounce")} />
+              <span className="relative z-10">
+                {importing ? `جاري (${Math.round((importProgress/importTotal)*100)}%)` : 'استيراد'}
+              </span>
+              {importing && (
+                <div className="absolute inset-0 bg-blue-500/10 origin-right transition-transform" style={{ transform: `scaleX(${importProgress/importTotal})` }} />
+              )}
+              <input type="file" accept=".xlsx, .xls" onChange={handleImport} className="hidden" disabled={importing} />
+            </label>
+            <button 
+              onClick={handleExport}
+              className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-3 md:px-4 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-bold flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all border border-neutral-100 dark:border-white/5 shadow-sm"
+            >
+              <Download size={14} className="text-green-500" />
+              <span>تصدير</span>
+            </button>
+            <button 
+              onClick={() => { setEditingProduct(null); setShowForm(true); }}
+              className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 md:px-6 py-3 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-neutral-200 dark:shadow-none flex items-center gap-2 text-[10px] md:text-xs font-black transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus size={16} />
+              إضافة
+            </button>
+          </div>
+        </div>
+
+      <div className="flex flex-col md:flex-row gap-4 mb-2">
+        <div className="relative flex-1">
+          <input 
+            type="text" 
+            placeholder="ابحث باسم المنتج..." 
+            className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-2xl px-6 py-4 text-sm pr-12 shadow-sm focus:ring-2 focus:ring-primary-500/20 focus:outline-none transition-all dark:text-white"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <SearchIcon size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400" />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0">
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={cn(
+              "px-6 py-4 rounded-xl text-xs font-bold whitespace-nowrap transition-all border",
+              selectedCategory === 'all' 
+                ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white shadow-md" 
+                : "bg-white dark:bg-neutral-900 text-neutral-500 border-neutral-100 dark:border-white/5 hover:border-neutral-200"
+            )}
+          >
+            الكل
+          </button>
+          {categories.map((cat: any) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={cn(
+                "px-6 py-4 rounded-xl text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-2",
+                selectedCategory === cat.id 
+                  ? "bg-primary-500 text-white border-primary-500 shadow-md" 
+                  : "bg-white dark:bg-neutral-900 text-neutral-500 border-neutral-100 dark:border-white/5 hover:border-neutral-200"
+              )}
+            >
+              <span>{cat.icon}</span>
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showForm && (
+        <ProductForm 
+          onClose={() => setShowForm(false)} 
+          initialData={editingProduct}
+          categories={categories}
+          brands={brands}
+          units={units}
+          packages={packages}
+        />
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {filtered.map((p: Product) => {
+          const cat = categories.find((c:any) => c.id === p.categoryId);
+          const brand = brands.find((b:any) => b.id === p.brandId);
+          return (
+            <div key={p.id} className="bg-white dark:bg-neutral-900 p-5 rounded-[32px] border border-neutral-100 dark:border-white/5 flex flex-col gap-4 shadow-sm group hover:border-primary-500/30 transition-all duration-300">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-110 transition-transform">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="text-2xl">{cat?.icon || '📦'}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-sm text-neutral-900 dark:text-white truncate group-hover:text-primary-600 transition-colors">{p.name}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] font-black uppercase text-neutral-400 bg-neutral-50 dark:bg-neutral-800 px-2 py-0.5 rounded-md truncate max-w-[80px]">
+                        {cat?.name || 'بدون قسم'}
+                      </span>
+                      {brand && (
+                        <span className="text-[9px] font-black uppercase text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md truncate max-w-[80px]">
+                          {brand.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => { setEditingProduct(p); setShowForm(true); }} className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-neutral-900 dark:hover:bg-white hover:text-white dark:hover:text-neutral-900 transition-all">
+                    <Edit2 size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(p.id)} className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-neutral-50/50 dark:bg-neutral-800/50 p-4 rounded-2xl border border-neutral-100 dark:border-white/5 grid grid-cols-3 gap-2">
+                <div className="flex flex-col gap-0.5 items-center justify-center">
+                  <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest leading-none">وكيل</span>
+                  <span className="text-xs font-black text-blue-600 leading-normal">{p.agentPrice.toLocaleString()}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 items-center justify-center border-x border-dashed border-neutral-200 dark:border-white/10">
+                  <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest leading-none">جملة</span>
+                  <span className="text-xs font-black text-indigo-600 leading-normal">{p.wholesalePrice.toLocaleString()}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 items-center justify-center">
+                  <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest leading-none">تجزئة</span>
+                  <span className="text-xs font-black text-neutral-900 dark:text-white leading-normal">{p.retailPrice.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="col-span-full py-20 text-center text-neutral-400 italic text-sm">لم يتم العثور على منتجات تطابق بحثك</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProductForm({ onClose, initialData, categories, brands, units, packages }: any) {
+  const [formTab, setFormTab] = useState<'basic' | 'prices' | 'variants'>('basic');
+  const [formData, setFormData] = useState({
+    name: initialData?.name || '',
+    categoryId: initialData?.categoryId || '',
+    brandId: initialData?.brandId || '',
+    unitId: initialData?.unitId || '',
+    packageId: initialData?.packageId || '',
+    agentPrice: initialData?.agentPrice || 0,
+    wholesalePrice: initialData?.wholesalePrice || 0,
+    retailPrice: initialData?.retailPrice || 0,
+    imageUrl: initialData?.imageUrl || '',
+    description: initialData?.description || '',
+    trend: initialData?.trend || 'stable' as Trend,
+    variants: initialData?.variants || [] as ProductVariant[],
+  });
+
+  const addVariant = () => {
+    setFormData({
+      ...formData,
+      variants: [...formData.variants, { packageId: '', agentPrice: 0, wholesalePrice: 0, retailPrice: 0 }]
+    });
+  };
+
+  const removeVariant = (index: number) => {
+    const newVariants = [...formData.variants];
+    newVariants.splice(index, 1);
+    setFormData({ ...formData, variants: newVariants });
+  };
+
+  const updateVariant = (index: number, field: string, value: any) => {
+    const newVariants = [...formData.variants];
+    newVariants[index] = { ...newVariants[index], [field]: value };
+    setFormData({ ...formData, variants: newVariants });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData({ ...formData, imageUrl: event.target?.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const data = {
+      ...formData,
+      agentPrice: Number(formData.agentPrice),
+      wholesalePrice: Number(formData.wholesalePrice),
+      retailPrice: Number(formData.retailPrice),
+      previousRetailPrice: initialData?.retailPrice || formData.retailPrice,
+      lastUpdatedAt: serverTimestamp(),
+      createdAt: initialData?.createdAt || serverTimestamp(),
+      variants: formData.variants.map((v: any) => ({
+        ...v,
+        agentPrice: Number(v.agentPrice),
+        wholesalePrice: Number(v.wholesalePrice),
+        retailPrice: Number(v.retailPrice),
+      })),
+    };
+
+    if (initialData) {
+      await updateDoc(doc(db, 'products', initialData.id), data);
+    } else {
+      await addDoc(collection(db, 'products'), data);
+    }
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-neutral-900/40 backdrop-blur-sm p-4 overflow-y-auto pointer-events-auto">
+      <div className="min-h-full flex items-center justify-center py-10">
+        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[32px] p-6 md:p-8 shadow-2xl flex flex-col gap-6 w-full max-w-2xl relative">
+          <div className="flex items-center justify-between">
+            <h4 className="font-bold text-xl">{initialData ? 'تعديل منتج' : 'إضافة منتج جديد'}</h4>
+            <button onClick={onClose} className="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-full text-neutral-400 dark:text-neutral-500"><X size={24} /></button>
+          </div>
+
+          <div className="flex gap-1 bg-neutral-50 dark:bg-neutral-800 p-1 rounded-2xl">
+            {(['basic', 'prices', 'variants'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFormTab(t)}
+                className={cn(
+                  "flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all",
+                  formTab === t 
+                    ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm" 
+                    : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                )}
+              >
+                {t === 'basic' ? 'المعلومات الأساسية' : t === 'prices' ? 'الأسعار' : 'الأحجام الإضافية'}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <AnimatePresence mode="wait">
+              {formTab === 'basic' && (
+                <motion.div 
+                  key="basic"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex flex-col gap-5"
+                >
+                  <Input label="اسم المنتج" value={formData.name} onChange={(e:any) => setFormData({...formData, name: e.target.value})} required placeholder="مثال: دقيق السعيد" />
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Select label="القسم" value={formData.categoryId} options={categories} onChange={(e:any) => setFormData({...formData, categoryId: e.target.value})} required />
+                    <Select label="العلامة التجارية" value={formData.brandId} options={brands} onChange={(e:any) => setFormData({...formData, brandId: e.target.value})} required />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Select label="الوحدة الأساسية" value={formData.unitId} options={units} onChange={(e:any) => setFormData({...formData, unitId: e.target.value})} required />
+                    <Select label="العبوة الأساسية" value={formData.packageId} options={packages} onChange={(e:any) => setFormData({...formData, packageId: e.target.value})} required />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest leading-none">صورة المنتج</label>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-2xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        {formData.imageUrl ? (
+                          <img src={formData.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <ImageIcon size={24} className="text-neutral-300" />
+                        )}
+                      </div>
+                      <label className="flex-1 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 rounded-2xl px-4 py-4 text-xs font-bold text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors cursor-pointer text-center">
+                        رفع صورة من الجهاز
+                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                      </label>
+                      {formData.imageUrl && (
+                        <button type="button" onClick={() => setFormData({...formData, imageUrl: ''})} className="p-4 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-100 transition-colors">
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {formTab === 'prices' && (
+                <motion.div 
+                  key="prices"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex flex-col gap-6"
+                >
+                  <div className="bg-neutral-50 dark:bg-neutral-800/50 p-6 rounded-[32px] flex flex-col gap-6 border border-neutral-100 dark:border-white/5">
+                    <div className="flex items-center justify-between px-2">
+                      <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-widest">أسعار البيع الأساسية</h5>
+                      <TrendingUp size={14} className="text-primary-500" />
+                    </div>
+                    
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center gap-4 bg-white dark:bg-neutral-900 p-2 rounded-2xl border border-neutral-50 dark:border-white/5">
+                        <div className="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500 shrink-0">
+                          <ShieldCheck size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1 leading-none">سعر الوكيل</label>
+                          <input type="number" value={formData.agentPrice} onChange={(e:any) => setFormData({...formData, agentPrice: e.target.value})} required className="w-full bg-transparent font-black text-blue-600 dark:text-blue-400 focus:outline-none text-lg" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 bg-white dark:bg-neutral-900 p-2 rounded-2xl border border-neutral-50 dark:border-white/5">
+                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500 shrink-0">
+                          <Package size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1 leading-none">سعر الجملة</label>
+                          <input type="number" value={formData.wholesalePrice} onChange={(e:any) => setFormData({...formData, wholesalePrice: e.target.value})} required className="w-full bg-transparent font-black text-indigo-600 dark:text-indigo-400 focus:outline-none text-lg" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 bg-white dark:bg-neutral-900 p-2 rounded-2xl border border-neutral-50 dark:border-white/5">
+                        <div className="w-12 h-12 bg-neutral-100 dark:bg-neutral-800 rounded-xl flex items-center justify-center text-neutral-500 shrink-0">
+                          <TrendingUp size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1 leading-none">سعر التجزئة</label>
+                          <input type="number" value={formData.retailPrice} onChange={(e:any) => setFormData({...formData, retailPrice: e.target.value})} required className="w-full bg-transparent font-black text-neutral-900 dark:text-white focus:outline-none text-lg" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Select label="توقعات اتجاه السعر" value={formData.trend} options={[{id: 'up', name: 'ارتفاع المتوقع'}, {id: 'down', name: 'انخفاض المتوقع'}, {id: 'stable', name: 'ثبات'}]} onChange={(e:any) => setFormData({...formData, trend: e.target.value as any})} />
+                </motion.div>
+              )}
+
+              {formTab === 'variants' && (
+                <motion.div 
+                  key="variants"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex flex-col gap-4"
+                >
+                  <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-800 p-4 rounded-2xl">
+                    <div className="flex flex-col">
+                      <h5 className="text-[10px] font-black text-neutral-900 dark:text-white uppercase tracking-widest">أحجام وعبوات إضافية</h5>
+                      <p className="text-[9px] text-neutral-400">مثلاً: سعر الكرتون مقابل سعر الحبة</p>
+                    </div>
+                    <button type="button" onClick={addVariant} className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black transition-all active:scale-95 shadow-lg shadow-neutral-200 dark:shadow-none">
+                      <Plus size={14} /> إضافة
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+                    {formData.variants.map((v: any, index: number) => (
+                      <div key={index} className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 p-5 rounded-[24px] shadow-sm flex flex-col gap-4 relative group">
+                        <button type="button" onClick={() => removeVariant(index)} className="absolute -top-2 -left-2 p-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full hover:bg-red-100 transition-colors opacity-0 group-hover:opacity-100">
+                          <X size={14} />
+                        </button>
+                        <Select 
+                          label="نوع العبوة البديلة" 
+                          value={v.packageId} 
+                          options={packages} 
+                          onChange={(e:any) => updateVariant(index, 'packageId', e.target.value)} 
+                          required 
+                        />
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="flex flex-col gap-1.5 flex-1">
+                             <label className="text-[9px] font-black text-blue-500 px-3 uppercase tracking-widest">وكيل</label>
+                             <input type="number" value={v.agentPrice} onChange={(e:any) => updateVariant(index, 'agentPrice', e.target.value)} required className="w-full bg-blue-50/30 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/10 rounded-xl px-3 py-3 text-xs font-black text-blue-600 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-center" />
+                          </div>
+                          <div className="flex flex-col gap-1.5 flex-1">
+                             <label className="text-[9px] font-black text-indigo-500 px-3 uppercase tracking-widest">جملة</label>
+                             <input type="number" value={v.wholesalePrice} onChange={(e:any) => updateVariant(index, 'wholesalePrice', e.target.value)} required className="w-full bg-indigo-50/30 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10 rounded-xl px-3 py-3 text-xs font-black text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-center" />
+                          </div>
+                          <div className="flex flex-col gap-1.5 flex-1">
+                             <label className="text-[9px] font-black text-neutral-500 px-3 uppercase tracking-widest">تجزئة</label>
+                             <input type="number" value={v.retailPrice} onChange={(e:any) => updateVariant(index, 'retailPrice', e.target.value)} required className="w-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-3 text-xs font-black text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-500/20 text-center" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {formData.variants.length === 0 && (
+                      <div className="text-center py-10 border border-dashed border-neutral-200 dark:border-white/10 rounded-3xl text-xs text-neutral-400 font-bold">لا يوجد أحجام إضافية لهذا المنتج</div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            <div className="flex gap-3 mt-4">
+              <button 
+                type="submit" 
+                className="flex-1 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 py-5 rounded-[24px] font-black font-display shadow-xl shadow-neutral-200 dark:shadow-none hover:scale-[1.01] active:scale-[0.98] transition-all"
+              >
+                {initialData ? 'تحديث البيانات' : 'إضافة المنتج'}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function ExchangeRateManager({ rates }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingRate, setEditingRate] = useState<any>(null);
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    const data = {
+      fromCurrency: e.target.from.value,
+      toCurrency: e.target.to.value,
+      rate: Number(e.target.buy.value), // Keep rate as buy for backwards compatibility if needed
+      buyRate: Number(e.target.buy.value),
+      sellRate: Number(e.target.sell.value),
+      trend: e.target.trend.value,
+      lastUpdatedAt: serverTimestamp(),
+      previousRate: editingRate?.buyRate || Number(e.target.buy.value),
+    };
+    if (editingRate) {
+      await updateDoc(doc(db, 'exchangeRates', editingRate.id), data);
+    } else {
+      await addDoc(collection(db, 'exchangeRates'), data);
+    }
+    setShowForm(false);
+    setEditingRate(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold">إدارة أسعار الصرف</h3>
+        <button onClick={() => { setEditingRate(null); setShowForm(true); }} className="bg-neutral-900 text-white p-3 rounded-2xl shadow-lg">
+          <Plus size={18} />
+        </button>
+      </div>
+      
+      {showForm && (
+        <div className="fixed inset-0 z-[100] bg-neutral-900/40 backdrop-blur-sm p-6 flex items-center justify-center">
+          <motion.form 
+            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            onSubmit={handleSubmit} 
+            className="bg-white rounded-[32px] p-8 w-full max-w-sm flex flex-col gap-5 shadow-2xl relative"
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-lg">{editingRate ? 'تعديل سعر' : 'إضافة سعر صرف'}</h4>
+              <button type="button" onClick={() => setShowForm(false)} className="p-2 bg-neutral-50 rounded-full text-neutral-400"><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="اسم العملة (مثلاً ريال سعودي)" name="from" defaultValue={editingRate?.fromCurrency} required />
+              <Input label="إلى عملة (مثلاً ريال يمني)" name="to" defaultValue={editingRate?.toCurrency} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="سعر الشراء" name="buy" type="number" step="0.01" defaultValue={editingRate?.buyRate || editingRate?.rate} required />
+              <Input label="سعر البيع" name="sell" type="number" step="0.01" defaultValue={editingRate?.sellRate} required />
+            </div>
+            <Select label="الاتجاه" name="trend" defaultValue={editingRate?.trend} options={[{id: 'up', name: 'ارتفاع'}, {id: 'down', name: 'انخفاض'}, {id: 'stable', name: 'ثبات'}]} required />
+            <button className="bg-neutral-900 text-white py-5 rounded-2xl font-bold mt-2 shadow-lg">تحديث السعر</button>
+          </motion.form>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {rates.map((r: any) => (
+          <div key={r.id} className="bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 flex flex-col gap-6 shadow-sm group hover:border-primary-500/30 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-neutral-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center text-green-500 shadow-inner">
+                  <TrendingUp size={24} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-display font-black text-lg text-neutral-900 dark:text-white leading-tight">{r.fromCurrency}</span>
+                  <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mt-1">مقابل {r.toCurrency}</span>
+                </div>
+              </div>
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <button 
+                  onClick={() => { setEditingRate(r); setShowForm(true); }} 
+                  className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-neutral-900 dark:hover:bg-white hover:text-white dark:hover:text-neutral-900 transition-all"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button 
+                  onClick={() => deleteDoc(doc(db, 'exchangeRates', r.id))} 
+                  className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+               <div className="bg-neutral-50/50 dark:bg-neutral-800/50 p-4 rounded-2xl border border-neutral-100 dark:border-white/5 flex flex-col gap-1 items-center">
+                  <span className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">شراء</span>
+                  <span className="text-2xl font-accent font-black text-neutral-900 dark:text-white">{(r.buyRate || r.rate).toLocaleString()}</span>
+               </div>
+               <div className="bg-neutral-50/50 dark:bg-neutral-800/50 p-4 rounded-2xl border border-neutral-100 dark:border-white/5 flex flex-col gap-1 items-center">
+                  <span className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">بيع</span>
+                  <span className="text-2xl font-accent font-black text-neutral-900 dark:text-white">{(r.sellRate || '-').toLocaleString()}</span>
+               </div>
+            </div>
+
+            <div className="flex items-center justify-between px-2">
+               <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full animate-pulse",
+                    r.trend === 'up' ? "bg-red-500" : (r.trend === 'down' ? "bg-green-500" : "bg-neutral-300")
+                  )} />
+                  <span className="text-[10px] font-bold text-neutral-400">
+                    {r.trend === 'up' ? 'يرتفع' : (r.trend === 'down' ? 'ينخفض' : 'مستقر')}
+                  </span>
+               </div>
+               <span className="text-[8px] font-black text-neutral-300 uppercase tracking-widest">
+                 تحديث: {r.lastUpdatedAt ? new Date(r.lastUpdatedAt.seconds * 1000).toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' }) : 'أوتوماتيكي'}
+               </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetaManager({ categories, brands, units, packages }: any) {
+  const [activeMeta, setActiveMeta] = useState<'categories' | 'brands' | 'units' | 'packages'>('categories');
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [inputValue, setInputValue] = useState('');
+  const [iconValue, setIconValue] = useState('📦');
+
+  const metaSections = [
+    { id: 'categories', label: 'الأقسام الرئيسية', icon: <Tags size={18} />, color: 'text-purple-500', bg: 'bg-purple-50', desc: 'إدارة تصنيفات السلع والمنتجات' },
+    { id: 'brands', label: 'العلامات التجارية', icon: <ShieldCheck size={18} />, color: 'text-blue-500', bg: 'bg-blue-50', desc: 'إدارة الشركات والماركات التجارية' },
+    { id: 'units', label: 'وحدات القياس', icon: <Ruler size={18} />, color: 'text-orange-500', bg: 'bg-orange-50', desc: 'إدارة وحدات الكيل، الوزن، والسعة' },
+    { id: 'packages', label: 'أنواع العبوات', icon: <Box size={18} />, color: 'text-green-500', bg: 'bg-green-50', desc: 'إدارة أشكال وأحجام التغليف' },
+  ];
+
+  const collectionNames = { categories, brands, units, packages };
+  const currentItems = (collectionNames as any)[activeMeta];
+  const activeSection = metaSections.find(s => s.id === activeMeta);
+
+  const handleOpenForm = (item: any = null) => {
+    setEditingItem(item);
+    setInputValue(item ? item.name : '');
+    setIconValue(item?.icon || '📦');
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
+
+    const data: any = { name: inputValue.trim() };
+    if (activeMeta === 'categories') data.icon = iconValue;
+
+    if (editingItem) {
+      await updateDoc(doc(db, activeMeta, editingItem.id), data);
+    } else {
+      await addDoc(collection(db, activeMeta), data);
+    }
+    setShowForm(false);
+    setEditingItem(null);
+    setInputValue('');
+  };
+
+  const handleSeed = async () => {
+    if (!window.confirm('هل تريد تهيئة بيانات تجريبية كاملة لكافة الإعدادات؟')) return;
+    
+    // 1. Categories
+    const catsData = [
+      { name: 'قمح ودقيق', icon: '🌾' },
+      { name: 'أرز وبقوليات', icon: '🍚' },
+      { name: 'سكر وزيوت', icon: '🧂' },
+      { name: 'محروقات', icon: '⛽' },
+      { name: 'خضروات وفواكه', icon: '🍎' }
+    ];
+    for (const c of catsData) await addDoc(collection(db, 'categories'), c);
+
+    // 2. Brands
+    const brandsData = [{ name: 'السعيد' }, { name: 'هائل سعيد' }, { name: 'روابي' }, { name: 'الخليج' }, { name: 'الكمال' }];
+    for (const b of brandsData) await addDoc(collection(db, 'brands'), b);
+
+    // 3. Units & Packages
+    const unitsData = [{ name: 'كجم' }, { name: 'لتر' }, { name: 'حبه' }, { name: 'متر' }];
+    for (const u of unitsData) await addDoc(collection(db, 'units'), u);
+
+    const packagesData = [
+      { name: 'كيس 50 كجم' }, 
+      { name: 'كيس 25 كجم' }, 
+      { name: 'كيس 10 كجم' }, 
+      { name: 'كرتون' }, 
+      { name: 'دبة 20 لتر' }
+    ];
+    for (const p of packagesData) await addDoc(collection(db, 'packages'), p);
+
+    alert('تمت تهيئة البيانات بنجاح!');
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('حذف هذا العنصر؟ قد يؤثر ذلك على المنتجات المرتبطة به.')) {
+      await deleteDoc(doc(db, activeMeta, id));
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-8">
+      {/* Top Switcher */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 md:p-2 rounded-[24px] md:rounded-[32px] border border-neutral-100 dark:border-white/5 overflow-x-auto no-scrollbar">
+        {metaSections.map((sec) => (
+          <button
+            key={sec.id}
+            onClick={() => setActiveMeta(sec.id as any)}
+            className={cn(
+              "flex items-center justify-center gap-2 md:gap-3 px-3 md:px-6 py-3 md:py-4 rounded-[18px] md:rounded-[24px] text-[10px] md:text-[13px] font-bold transition-all whitespace-nowrap",
+              activeMeta === sec.id 
+                ? "bg-white dark:bg-neutral-800 shadow-md text-neutral-900 dark:text-white scale-[1.02]" 
+                : "text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+            )}
+          >
+            {React.cloneElement(sec.icon as React.ReactElement, { size: 14, className: activeMeta === sec.id ? sec.color : 'text-neutral-400' })}
+            {sec.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-6">
+        <header className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-5 md:p-6 rounded-[28px] md:rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm">
+          <div className="flex items-center gap-4 md:gap-5 w-full sm:w-auto">
+             <div className={cn("p-3 md:p-4 rounded-2xl shadow-inner", activeSection?.bg, activeSection?.color)}>
+               {React.cloneElement(activeSection?.icon as React.ReactElement, { size: 20 })}
+             </div>
+             <div className="flex flex-col">
+                <h3 className="text-lg md:text-xl font-display font-black text-neutral-900 dark:text-white leading-none">{activeSection?.label}</h3>
+                <p className="text-[10px] md:text-xs font-medium text-neutral-400 dark:text-neutral-500 mt-2">{activeSection?.desc}</p>
+             </div>
+          </div>
+          <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 border-dashed border-neutral-100 dark:border-white/5 pt-4 sm:pt-0 mt-2 sm:mt-0">
+            <button 
+              onClick={handleSeed}
+              className="px-3 py-2 text-[10px] font-bold text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+            >
+              تهيئة البيانات
+            </button>
+            <motion.button 
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleOpenForm()}
+              className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center gap-2 px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold shadow-lg shadow-neutral-200 dark:shadow-none hover:-translate-y-0.5 transition-all"
+            >
+              <Plus size={16} />
+              <span>إضافة جديد</span>
+            </motion.button>
+          </div>
+        </header>
+
+          <div className="flex flex-col gap-3">
+            <AnimatePresence mode="popLayout">
+              {currentItems.map((item: any) => (
+                <motion.div 
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  key={item.id} 
+                  className="bg-white p-4 rounded-[24px] border border-neutral-100 flex items-center justify-between group hover:border-neutral-200 transition-all duration-300 shadow-sm"
+                >
+                  <div className="flex items-center gap-4">
+                    {activeMeta === 'categories' ? (
+                      <div className="text-2xl w-12 h-12 flex items-center justify-center bg-neutral-50 rounded-xl shadow-inner group-hover:bg-primary-50 transition-colors">
+                        {item.icon || '📦'}
+                      </div>
+                    ) : (
+                      <div className={cn("w-12 h-12 flex items-center justify-center rounded-xl shadow-inner bg-neutral-50 group-hover:bg-neutral-100 transition-colors", activeSection?.color)}>
+                        {activeSection?.icon}
+                      </div>
+                    )}
+                    <div className="flex flex-col">
+                      <h4 className="font-bold text-neutral-800 text-sm leading-tight">{item.name}</h4>
+                      <p className="text-[9px] font-bold text-neutral-300 uppercase tracking-widest mt-1">المعرف: {item.id.substring(0, 8)}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={() => handleOpenForm(item)} 
+                      className="p-2.5 bg-neutral-50 text-neutral-400 rounded-xl hover:bg-neutral-900 hover:text-white transition-all shadow-sm"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(item.id)} 
+                      className="p-2.5 bg-neutral-50 text-neutral-400 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {currentItems.length === 0 && (
+              <div className="col-span-full py-24 text-center bg-white/50 border-2 border-dashed border-neutral-200 rounded-[48px] flex flex-col items-center justify-center">
+                <div className="w-20 h-20 bg-white rounded-3xl shadow-sm flex items-center justify-center text-4xl mb-6 opacity-40">🗂️</div>
+                <h5 className="font-display font-black text-xl text-neutral-600">لا تتوفر أي بيانات حالياً</h5>
+                <p className="text-sm text-neutral-400 mt-2 max-w-[200px] leading-relaxed font-medium">ابدأ الآن بإضافة أول سجل في قائمة {activeSection?.label} لهذا المتجر</p>
+                <button 
+                  onClick={() => handleOpenForm()}
+                  className="mt-8 text-xs font-black text-primary-600 hover:underline uppercase tracking-widest"
+                >
+                  انقر هنا للإضافة
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+      {/* Modal Form */}
+      <AnimatePresence>
+        {showForm && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center pointer-events-none p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-neutral-900/60 backdrop-blur-md pointer-events-auto"
+              onClick={() => setShowForm(false)}
+            />
+            <motion.form 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onSubmit={handleSubmit} 
+              className="relative bg-white rounded-[48px] p-10 w-full max-w-md flex flex-col gap-8 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.3)] pointer-events-auto"
+            >
+              <button 
+                type="button" 
+                onClick={() => setShowForm(false)} 
+                className="absolute top-8 left-8 p-3 bg-neutral-50 text-neutral-400 rounded-full hover:bg-neutral-100 hover:text-neutral-900 transition-all active:scale-90"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="text-center pt-4">
+                <div className={cn("inline-flex p-5 rounded-[28px] mb-6 shadow-highlight", activeSection?.bg, activeSection?.color)}>
+                  {activeSection?.icon && React.cloneElement(activeSection.icon as React.ReactElement, { size: 40 })}
+                </div>
+                <h4 className="font-display font-black text-3xl text-neutral-900">{editingItem ? 'تعديل البيانات' : 'إضافة سجل'}</h4>
+                <p className="text-sm font-medium text-neutral-400 mt-3 px-6">يرجى تعبئة كافة الحقول المطلوبة لضمان دقة البيانات في النظام</p>
+              </div>
+              
+              <div className="flex flex-col gap-6">
+                {activeMeta === 'categories' && (
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">اختيار أيقونة (Emoji)</label>
+                    <input 
+                      type="text" 
+                      className="bg-neutral-50 border border-neutral-100 rounded-[24px] px-8 py-5 text-4xl text-center focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all shadow-inner"
+                      value={iconValue} 
+                      onChange={(e) => setIconValue(e.target.value)} 
+                      placeholder="🌾" 
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col gap-3">
+                  <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">مسمى {activeSection?.label.slice(0, -1)}</label>
+                  <input 
+                    type="text" 
+                    className="bg-neutral-50 border border-neutral-100 rounded-[24px] px-8 py-5 font-bold text-neutral-900 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all shadow-inner text-lg"
+                    value={inputValue} 
+                    onChange={(e) => setInputValue(e.target.value)} 
+                    required 
+                    autoFocus 
+                    placeholder="أدخل الاسم بوضوح..." 
+                  />
+                </div>
+              </div>
+              
+              <button className="bg-neutral-900 text-white py-6 rounded-[32px] font-display font-black text-lg shadow-2xl shadow-neutral-300 hover:translate-y-[-4px] transition-all active:scale-[0.98] mt-4">
+                {editingItem ? 'حفظ التعديلات' : 'إضافة الآن'}
+              </button>
+            </motion.form>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// UI Helpers (Refined for Admin)
+const Input = ({ label, ...props }: any) => (
+  <div className="flex flex-col gap-2 md:gap-3">
+    <label className="text-[10px] md:text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mr-4 md:mr-5">{label}</label>
+    <input 
+      {...props} 
+      className="bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 rounded-xl md:rounded-[24px] px-5 md:px-7 py-3.5 md:py-5 text-sm md:text-[15px] font-bold text-neutral-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 dark:focus:ring-primary-500/5 focus:bg-white dark:focus:bg-neutral-900 focus:border-primary-200 dark:focus:border-primary-500/20 transition-all placeholder:text-neutral-300 dark:placeholder:text-neutral-600 shadow-inner" 
+    />
+  </div>
+);
+
+const Select = ({ label, options, ...props }: any) => (
+  <div className="flex flex-col gap-2 md:gap-3">
+    <label className="text-[10px] md:text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mr-4 md:mr-5">{label}</label>
+    <div className="relative">
+      <select 
+        {...props} 
+        className="w-full bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 rounded-xl md:rounded-[24px] px-5 md:px-7 py-3.5 md:py-5 text-sm md:text-[15px] font-bold text-neutral-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 dark:focus:ring-primary-500/5 focus:bg-white dark:focus:bg-neutral-900 focus:border-primary-200 dark:focus:border-primary-500/20 transition-all appearance-none shadow-inner"
+      >
+        <option value="" className="dark:bg-neutral-900">اختر من الخيارات المتاحة...</option>
+        {options.map((o: any) => <option key={o.id} value={o.id} className="dark:bg-neutral-900">{o.name}</option>)}
+      </select>
+      <div className="absolute left-5 md:left-6 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+         <SlidersHorizontal size={14} />
+      </div>
+    </div>
+  </div>
+);
+const LoginIllustration = () => (
+  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" className="text-neutral-200" />
+    <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="2" className="text-neutral-200" />
+    <path d="M6 18C6 15 9 14 12 14C15 14 18 15 18 18" stroke="currentColor" strokeWidth="2" className="text-neutral-200" />
+  </svg>
+);

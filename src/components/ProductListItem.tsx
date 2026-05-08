@@ -1,0 +1,77 @@
+import React from 'react';
+import { motion } from 'motion/react';
+import { useData } from '../contexts/DataContext';
+import { Product } from '../types';
+import { formatCurrency, cn } from '../lib/utils';
+import { TrendIndicator } from './TrendIndicator';
+import { Tag, Package as PackageIcon } from 'lucide-react';
+
+interface ProductListItemProps {
+  product: Product;
+  key?: any;
+}
+
+export function ProductListItem({ product }: ProductListItemProps) {
+  const { categories, brands, units, packages } = useData();
+  
+  const category = categories.find((c: any) => c.id === product.categoryId);
+  const brand = brands.find((b: any) => b.id === product.brandId);
+  const unit = units.find((u: any) => u.id === product.unitId);
+  const pack = packages.find((p: any) => p.id === product.packageId);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="bg-white dark:bg-neutral-900 rounded-2xl p-3 shadow-sm border border-neutral-100 dark:border-white/5 flex items-center gap-4 group hover:border-primary-100 dark:hover:border-primary-900/50 transition-colors"
+    >
+      <div className="relative flex-shrink-0">
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            referrerPolicy="no-referrer"
+            className="w-14 h-14 rounded-xl object-cover bg-neutral-50 dark:bg-neutral-800"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-xl bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-neutral-300 dark:text-neutral-700">
+            <PackageIcon size={24} />
+          </div>
+        )}
+        <div className="absolute -top-1 -right-1">
+          <TrendIndicator trend={product.trend} className="w-4 h-4 shadow-sm" />
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0 pr-1">
+        <h3 className="font-display font-bold text-base text-neutral-800 dark:text-neutral-100 truncate leading-tight group-hover:text-primary-600 transition-colors">
+          {product.name}
+        </h3>
+        <div className="flex items-center gap-2.5 mt-1.5">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-medium bg-neutral-50 dark:bg-neutral-800/50 px-2 py-0.5 rounded-lg border border-neutral-100 dark:border-white/5">
+             {unit?.name} {pack?.name}
+          </span>
+          {brand && (
+            <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-medium flex items-center gap-1">
+              <Tag size={10} className="opacity-50" /> {brand.name}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+        <div className="flex items-center gap-2 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 rounded-xl border border-neutral-100 dark:border-white/5">
+          <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-tighter">سعر التجزئة</span>
+          <span className="font-accent font-black text-base text-neutral-900 dark:text-white">
+            {formatCurrency(product.retailPrice)}
+          </span>
+        </div>
+        <div className="flex gap-2 pr-1">
+          <span className="text-[10px] font-bold text-blue-500/80">وكيل: {formatCurrency(product.agentPrice)}</span>
+          <span className="text-[10px] font-bold text-indigo-500/80">جملة: {formatCurrency(product.wholesalePrice)}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
