@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Category, Product, ExchangeRate, Unit, Package, Brand } from '../types';
+import { Category, Product, ExchangeRate, Unit, Package, Brand, ReportMeta, Governorate, District } from '../types';
 import { OperationType, handleFirestoreError } from '../lib/utils';
 
 interface DataContextType {
@@ -11,6 +11,9 @@ interface DataContextType {
   units: Unit[];
   packages: Package[];
   brands: Brand[];
+  reportTypes: ReportMeta[];
+  governorates: Governorate[];
+  districts: District[];
   loading: boolean;
 }
 
@@ -21,6 +24,9 @@ const DataContext = createContext<DataContextType>({
   units: [],
   packages: [],
   brands: [],
+  reportTypes: [],
+  governorates: [],
+  districts: [],
   loading: true,
 });
 
@@ -31,6 +37,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [reportTypes, setReportTypes] = useState<ReportMeta[]>([]);
+  const [governorates, setGovernorates] = useState<Governorate[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -64,6 +73,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       (e) => handleFirestoreError(e, OperationType.LIST, 'brands')
     );
 
+    const unsubReportTypes = onSnapshot(collection(db, 'report_types'), 
+      (s) => setReportTypes(s.docs.map(d => ({ id: d.id, ...d.data() } as ReportMeta))),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'report_types')
+    );
+
+    const unsubGovernorates = onSnapshot(collection(db, 'governorates'), 
+      (s) => setGovernorates(s.docs.map(d => ({ id: d.id, ...d.data() } as Governorate))),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'governorates')
+    );
+
+    const unsubDistricts = onSnapshot(collection(db, 'districts'), 
+      (s) => setDistricts(s.docs.map(d => ({ id: d.id, ...d.data() } as District))),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'districts')
+    );
+
     setLoading(false);
 
     return () => {
@@ -73,11 +97,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       unsubUnits();
       unsubPackages();
       unsubBrands();
+      unsubReportTypes();
+      unsubGovernorates();
+      unsubDistricts();
     };
   }, []);
 
   return (
-    <DataContext.Provider value={{ categories, products, exchangeRates, units, packages, brands, loading }}>
+    <DataContext.Provider value={{ categories, products, exchangeRates, units, packages, brands, reportTypes, governorates, districts, loading }}>
       {children}
     </DataContext.Provider>
   );

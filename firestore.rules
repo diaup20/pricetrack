@@ -78,5 +78,26 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
+
+    // Reports
+    match /reports/{reportId} {
+      allow create: if true;
+      allow read, update, delete: if isVerifiedAdmin();
+    }
+
+    match /report_types/{typeId} {
+      allow read: if true;
+      allow write: if isVerifiedAdmin();
+    }
+
+    match /governorates/{govId} {
+      allow read: if true;
+      allow write: if isVerifiedAdmin();
+    }
+
+    match /districts/{distId} {
+      allow read: if true;
+      allow write: if isVerifiedAdmin();
+    }
   }
 }

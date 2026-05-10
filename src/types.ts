@@ -59,9 +59,46 @@ export interface ExchangeRate {
   lastUpdatedAt: any;
 }
 
-export interface CategoryStats {
+export type CategoryStats = {
   total: number;
   up: number;
   down: number;
   stable: number;
+}
+
+export type ReportType = string;
+export type ReportStatus = 'new' | 'review' | 'resolved' | 'rejected';
+
+export interface ReportMeta {
+  id: string;
+  name: string;
+}
+
+export interface Governorate {
+  id: string;
+  name: string;
+}
+
+export interface District {
+  id: string;
+  name: string;
+  governorateId: string;
+}
+
+export interface Report {
+  id: string;
+  reporterName: string;
+  reporterPhone: string;
+  reportDate: any;
+  reportType: ReportType;
+  itemName: string;
+  currentPrice: number;
+  storeName: string;
+  governorate: string;
+  district: string;
+  locationDetails: string;
+  description: string;
+  imageUrl?: string;
+  status: ReportStatus;
+  createdAt: any;
 }

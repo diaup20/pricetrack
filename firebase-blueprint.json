@@ -72,6 +72,28 @@
         "lastUpdatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["fromCurrency", "toCurrency", "rate"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A user-submitted report about price hikes, fraud, etc.",
+      "type": "object",
+      "properties": {
+        "reporterName": { "type": "string" },
+        "reporterPhone": { "type": "string" },
+        "reportDate": { "type": "string", "format": "date-time" },
+        "reportType": { "type": "string", "enum": ["price_increase", "expired_item", "monopoly", "fraud", "price_diff", "missing_product"] },
+        "itemName": { "type": "string" },
+        "currentPrice": { "type": "number" },
+        "storeName": { "type": "string" },
+        "governorate": { "type": "string" },
+        "district": { "type": "string" },
+        "locationDetails": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "review", "resolved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterName", "reporterPhone", "reportType", "itemName", "governorate", "status"]
     }
   },
   "firestore": {
@@ -81,6 +103,10 @@
     "/brands/{brandId}": { "schema": "Brand", "description": "Product brands" },
     "/products/{productId}": { "schema": "Product", "description": "Individual product data with prices" },
     "/exchangeRates/{rateId}": { "schema": "ExchangeRate", "description": "Currency exchange rates" },
-    "/admins/{userId}": { "schema": { "type": "object", "properties": { "role": { "type": "string" } } }, "description": "Admin users" }
+    "/admins/{userId}": { "schema": { "type": "object", "properties": { "role": { "type": "string" } } }, "description": "Admin users" },
+    "/reports/{reportId}": { "schema": "Report", "description": "User complaints and reports" },
+    "/report_types/{typeId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }, "description": "Configurable report types" },
+    "/governorates/{govId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }, "description": "Yemen governorates" },
+    "/districts/{distId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "governorateId": { "type": "string" } }, "required": ["name", "governorateId"] }, "description": "Districts within governorates" }
   }
 }

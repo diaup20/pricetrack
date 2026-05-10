@@ -11,8 +11,10 @@ import {
   deleteDoc, 
   serverTimestamp, 
   onSnapshot, 
-  setDoc 
+  setDoc,
+  writeBatch 
 } from 'firebase/firestore';
+import { OperationType, handleFirestoreError } from '../lib/utils';
 import { 
   Plus, 
   Edit2, 
@@ -34,21 +36,28 @@ import {
   Download,
   Upload,
   FileText,
-  Image as ImageIcon
+  Image as ImageIcon,
+  AlertTriangle,
+  Clock,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Product, Trend, ProductVariant } from '../types';
+import { Product, Trend, ProductVariant, Report, ReportStatus, ReportType } from '../types';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 
 export function Admin() {
   const { user, isAdmin, loading } = useAuth();
-  const { categories, brands, units, packages, products, exchangeRates } = useData();
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'rates' | 'meta' | 'users'>('overview');
+  const { categories, brands, units, packages, products, exchangeRates, reportTypes, governorates, districts } = useData();
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'rates' | 'meta' | 'users' | 'reports'>('overview');
 
   const navigation = [
     { id: 'overview', label: 'نظرة عامة', icon: <LineChart size={18} /> },
     { id: 'products', label: 'المنتجات', icon: <Package size={18} /> },
+    { id: 'reports', label: 'البلاغات', icon: <AlertTriangle size={18} /> },
     { id: 'rates', label: 'الصرف', icon: <TrendingUp size={18} /> },
     { id: 'meta', label: 'الإعدادات', icon: <Settings size={18} /> },
     { id: 'users', label: 'المستخدمين', icon: <UsersIcon size={18} /> },
@@ -147,6 +156,7 @@ export function Admin() {
                 <StatCard label="الأقسام" value={categories.length} color="bg-purple-500" icon={<Tags size={20} />} />
                 <StatCard label="أسعار الصرف" value={exchangeRates.length} color="bg-green-500" icon={<TrendingUp size={20} />} trend="up" />
                 <StatCard label="تحديثات اليوم" value={products.filter(p => p.trend !== 'stable').length} color="bg-orange-500" icon={<LineChart size={20} />} trend="up" />
+                <ReportStatsCard />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -234,9 +244,13 @@ export function Admin() {
               brands={brands} 
               units={units} 
               packages={packages} 
+              reportTypes={reportTypes}
+              governorates={governorates}
+              districts={districts}
             />
           )}
           {activeTab === 'users' && <UserManager />}
+          {activeTab === 'reports' && <ReportManager />}
         </motion.div>
       </div>
     </Layout>
@@ -457,11 +471,12 @@ function UserManager() {
   );
 }
 
-// Arabic normalization helper for more robust matching
-const normalizeArabic = (text: string) => {
-  if (!text) return "";
-  return text
-    .trim()
+// Helpers for more robust data matching and processing
+const normalizeArabic = (text: any) => {
+  if (text === null || text === undefined) return "";
+  const str = String(text).trim();
+  if (!str) return "";
+  return str
     // Replace Alif variants
     .replace(/[أإآ]/g, "ا")
     // Replace Ta Marbuta with Ha
@@ -474,6 +489,17 @@ const normalizeArabic = (text: string) => {
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/\s+/g, " ")
     .toLowerCase();
+};
+
+const convertArabicNumerals = (text: string) => {
+  if (!text) return "";
+  const arabic = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
+  const farsi = [/۰/g, /۱/g, /۲/g, /۳/g, /۴/g, /۵/g, /۶/g, /۷/g, /۸/g, /۹/g];
+  let res = String(text);
+  for (let i = 0; i < 10; i++) {
+    res = res.replace(arabic[i], i.toString()).replace(farsi[i], i.toString());
+  }
+  return res;
 };
 
 function ProductManager({ products, categories, brands, units, packages }: any) {
@@ -491,67 +517,89 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
     return matchesSearch && matchesCategory;
   });
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
-      await deleteDoc(doc(db, 'products', id));
+  const handleDelete = async (id: string, name: string) => {
+    try {
+      if (window.confirm(`🚨 تنبيه هام: هل أنت متأكد من حذف المنتج "${name}" نهائياً من النظام؟ لا يمكن استعادة البيانات بعد هذه الخطوة.`)) {
+        await deleteDoc(doc(db, 'products', id));
+        alert('تم حذف المنتج بنجاح');
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
   };
 
   const handleExport = () => {
-    // Prepare data for Excel based on user requested fields
-    const exportData = products.map((p: any) => ({
-      'الاسم': p.name,
-      'الوصف': p.description || '',
-      'القسم': categories.find((c: any) => c.id === p.categoryId)?.name || '',
-      'العلامة': brands.find((b: any) => b.id === p.brandId)?.name || '',
-      'الحجم': units.find((u: any) => u.id === p.unitId)?.name || '',
-      'العبوة': packages.find((pk: any) => pk.id === p.packageId)?.name || '',
-      'سعر الوكيل': p.agentPrice,
-      'سعر الجملة': p.wholesalePrice,
-      'السعر (تجزئة)': p.retailPrice,
-      'الصورة': p.imageUrl || '',
-    }));
+    if (!products || products.length === 0) {
+      alert('لا توجد منتجات لتصديرها');
+      return;
+    }
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "المنتجات");
-    
-    // Set column widths for better readability
-    const colWidths = [
-      { wch: 25 }, // Name
-      { wch: 30 }, // Description
-      { wch: 15 }, // Category
-      { wch: 15 }, // Brand
-      { wch: 15 }, // Unit
-      { wch: 15 }, // Package
-      { wch: 12 }, // Agent Price
-      { wch: 12 }, // Wholesale Price
-      { wch: 12 }, // Retail Price
-      { wch: 25 }, // Image URL
-    ];
-    ws['!cols'] = colWidths;
+    try {
+      const EXCEL_LIMIT = 32760;
+      const t = (val: any) => {
+        if (typeof val !== 'string') return val;
+        return val.length > EXCEL_LIMIT ? val.slice(0, EXCEL_LIMIT) : val;
+      };
 
-    XLSX.writeFile(wb, 'سوق_اليمن_المنتجات.xlsx');
+      const exportData = products.map((p: any) => ({
+        'اسم المنتج': t(p.name || ''),
+        'الوصف': t(p.description || ''),
+        'القسم': t(categories.find((c: any) => c.id === p.categoryId)?.name || ''),
+        'العلامة التجارية': t(brands.find((b: any) => b.id === p.brandId)?.name || ''),
+        'وحدة القياس': t(units.find((u: any) => u.id === p.unitId)?.name || ''),
+        'نوع العبوة': t(packages.find((pk: any) => pk.id === p.packageId)?.name || ''),
+        'سعر الوكيل': p.agentPrice || 0,
+        'سعر الجملة': p.wholesalePrice || 0,
+        'سعر المستهلك (تجزئة)': p.retailPrice || 0,
+        'رابط الصورة': t(p.imageUrl || ''),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "المنتجات");
+      
+      const colWidths = [
+        { wch: 30 }, // Product Name
+        { wch: 35 }, // Description
+        { wch: 15 }, // Category
+        { wch: 15 }, // Brand
+        { wch: 15 }, // Unit
+        { wch: 15 }, // Package
+        { wch: 12 }, // Agent
+        { wch: 12 }, // Wholesale
+        { wch: 12 }, // Retail
+        { wch: 25 }, // Image
+      ];
+      ws['!cols'] = colWidths;
+
+      XLSX.writeFile(wb, `منتجات_سوق_اليمن_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Export Error:', error);
+      alert('حدث خطأ أثناء التصدير: ' + (error instanceof Error ? error.message : String(error)));
+    }
   };
 
   const downloadTemplate = () => {
     const templateData = [{
-      'الاسم': 'مثال: علبة قشطة السعيد',
-      'الوصف': 'وصف اختياري هنا',
-      'القسم': 'اسم القسم (يجب أن يكون موجوداً)',
-      'العلامة': 'اسم العلامة التجارية',
-      'الحجم': '250 جرام',
-      'العبوة': 'علبة ورق',
+      'اسم المنتج': 'مثال: علبة قشطة السعيد',
+      'الوصف': 'وصف اختياري هنا يوضح مواصفات المنتج',
+      'القسم': 'اسم القسم (يجب أن يكون موجوداً مسبقاً في النظام)',
+      'العلامة التجارية': 'اسم العلامة التجارية',
+      'وحدة القياس': '250 جرام',
+      'نوع العبوة': 'علبة ورق',
       'سعر الوكيل': 500,
       'سعر الجملة': 550,
-      'السعر (تجزئة)': 600,
-      'الصورة': 'رابط الصورة اختيارياً'
+      'سعر المستهلك': 600,
+      'رابط الصورة': 'رابط مباشر للصورة (اختياري)'
     }];
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "نموذج الاستيراد");
-    ws['!cols'] = [{ wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }];
-    XLSX.writeFile(wb, 'نموذج_استيراد_المنتجات.xlsx');
+    ws['!cols'] = [
+      { wch: 25 }, { wch: 35 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, 
+      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }
+    ];
+    XLSX.writeFile(wb, 'نموذج_استيراد_منتجات_سوق_اليمن.xlsx');
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -559,213 +607,154 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
     if (!file) return;
 
     setImporting(true);
+    setImportProgress(0);
     const reader = new FileReader();
+
     reader.onload = async (event) => {
       try {
-        console.log("Starting import process for file:", file.name);
         const buffer = event.target?.result as ArrayBuffer;
         const data = new Uint8Array(buffer);
         const workbook = XLSX.read(data, { type: 'array' });
         
         if (!workbook.SheetNames.length) {
-          alert('الملف لا يحتوي على أوراق (Sheets)');
-          setImporting(false);
-          return;
+          throw new Error('الملف لا يحتوي على بيانات');
         }
 
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Convert to JSON with more diagnostic logging
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" }) as any[];
-        console.log(`Successfully parsed ${jsonData.length} rows from sheet "${firstSheetName}"`);
 
-        if (!Array.isArray(jsonData) || jsonData.length === 0) {
-          alert('الملف فارغ أو لا يحتوي على بيانات صالحة');
-          if (e.target) e.target.value = '';
-          setImporting(false);
-          return;
+        if (!jsonData.length) {
+          throw new Error('الملف فارغ');
         }
 
-        // Validate headers before starting
-        const headers = Object.keys(jsonData[0]);
-        console.log("Detected headers:", headers);
-        
-        const nameKeys = ['الاسم', 'name', 'Title', 'Product Name', 'اسم المنتج', 'Product'];
-        const hasNameHeader = headers.some(h => 
-          nameKeys.some(nk => h.trim().toLowerCase() === nk.toLowerCase() || h.trim().includes(nk))
-        );
-
-        if (!hasNameHeader) {
-          alert(`خطأ: لم يتم العثور على عمود "الاسم" في الملف.\nالأعمدة المتوفرة: ${headers.join(', ')}`);
-          if (e.target) e.target.value = '';
-          setImporting(false);
-          return;
-        }
-
-        const confirmed = window.confirm(`تم العثور على ${jsonData.length} أسطر. هل تريد استيرادها؟ سيتم إضافة المنتجات الجديدة وتحديث الموجودة حالياً (بناءً على الاسم).`);
+        const confirmed = window.confirm(`تم العثور على ${jsonData.length} منتج. هل تريد المتابعة في عملية الاستيراد؟`);
         if (!confirmed) {
-          if (e.target) e.target.value = '';
           setImporting(false);
           return;
         }
-
-        let importedCount = 0;
-        let updatedCount = 0;
-        let errors = 0;
-        let skippedCount = 0;
-        let missingMeta = 0;
 
         setImportTotal(jsonData.length);
+        let importedCount = 0;
+        let updatedCount = 0;
+        let errorsCount = 0;
 
-        const logFirestoreError = (error: any, op: string, path: string) => {
-          const errInfo = {
-            error: error?.message || String(error),
-            operationType: op,
-            path,
-            authInfo: {
-              userId: auth.currentUser?.uid,
-              email: auth.currentUser?.email,
-              emailVerified: auth.currentUser?.emailVerified,
-            }
-          };
-          console.error(`Firestore ${op.toUpperCase()} Error at ${path}:`, errInfo);
+        // Configuration for field mapping
+        const fieldMaps = {
+          name: ['الاسم', 'اسم المنتج', 'name', 'title'],
+          description: ['الوصف', 'description', 'desc'],
+          category: ['القسم', 'التصنيف', 'category', 'section'],
+          brand: ['العلامة التجارية', 'العلامة', 'brand', 'ماركة'],
+          unit: ['وحدة القياس', 'الحجم', 'الوزن', 'unit', 'size'],
+          package: ['العبوة', 'نوع العبوة', 'package', 'pack'],
+          agentPrice: ['سعر الوكيل', 'وكيل', 'agentPrice'],
+          wholesalePrice: ['سعر الجملة', 'جملة', 'wholesalePrice'],
+          retailPrice: ['سعر المستهلك', 'السعر', 'تجزئة', 'retailPrice']
         };
 
-        for (let i = 0; i < jsonData.length; i++) {
-          const item = jsonData[i];
-          setImportProgress(i + 1);
-          try {
-            // Flexible value lookup with normalization
-            const findValue = (keys: string[]) => {
-              const itemKeys = Object.keys(item);
-              // Priority 1: Normalized match
-              let foundKey = itemKeys.find(itemKey => {
-                const ikNorm = normalizeArabic(itemKey);
-                return keys.some(searchKey => normalizeArabic(searchKey) === ikNorm);
-              });
-              
-              // Priority 2: Contains match
-              if (!foundKey) {
-                foundKey = itemKeys.find(itemKey => {
-                  const ikNorm = normalizeArabic(itemKey);
-                  return keys.some(searchKey => {
-                    const skNorm = normalizeArabic(searchKey);
-                    return ikNorm.includes(skNorm) || skNorm.includes(ikNorm);
-                  });
-                });
-              }
-              
-              const val = foundKey ? item[foundKey] : '';
-              return val !== undefined && val !== null ? String(val).trim() : '';
-            };
-            
-            const name = findValue(nameKeys);
-            const description = findValue(['الوصف', 'description', 'Desc', 'Details', 'الوصف العام']);
-            const catName = findValue(['القسم', 'Category', 'category', 'Section', 'Type', 'التصنيف']);
-            const brandName = findValue(['العلامة التجارية', 'العلامة', 'Brand', 'brand', 'الماركة']);
-            const unitName = findValue(['الحجم', 'الوحدة', 'Unit', 'unit', 'Size', 'القياس']);
-            const packName = findValue(['العبوة', 'Package', 'package', 'Pack', 'نوع العبوة']);
-            
-            const agentPriceStr = findValue(['وكيل', 'Agent', 'agentPrice', 'سعر الوكيل', 'سعر الموزع']);
-            const wholesalePriceStr = findValue(['جملة', 'Wholesale', 'wholesalePrice', 'سعر الجملة']);
-            const retailPriceStr = findValue(['تجزئة', 'السعر', 'Retail', 'Price', 'retailPrice', 'سعر التجزئة', 'السعر (تجزئة)', 'سعر المستهلك']);
-            const imageUrl = findValue(['رابط الصورة', 'الصورة', 'Image', 'imageUrl', 'Photo', 'الرابط']);
-
-            // Skip empty rows or example rows
-            const normalizedName = normalizeArabic(name);
-            if (!normalizedName || normalizedName.includes('مثال علبة قشطة السعيد') || normalizedName.includes('example')) {
-              if (Object.values(item).some(v => String(v).trim() !== "")) {
-                skippedCount++;
-              }
-              continue;
-            }
-
-            // Clean currency symbols and commas
-            const cleanPrice = (val: string) => {
-              if (!val) return 0;
-              const cleaned = val.replace(/[^\d.]/g, '');
-              const num = parseFloat(cleaned);
-              return isNaN(num) ? 0 : num;
-            };
-
-            const agentPrice = cleanPrice(agentPriceStr);
-            const wholesalePrice = cleanPrice(wholesalePriceStr);
-            const retailPrice = cleanPrice(retailPriceStr);
-
-            // Lookup IDs with normalization
-            const normalizedSearch = (list: any[], search: string) => {
-              if (!search) return '';
-              const searchNorm = normalizeArabic(search);
-              const found = list.find((c: any) => normalizeArabic(c.name) === searchNorm);
-              if (!found && search) {
-                missingMeta++;
-              }
-              return found?.id || '';
-            };
-
-            const categoryId = normalizedSearch(categories, catName);
-            const brandId = normalizedSearch(brands, brandName);
-            const unitId = normalizedSearch(units, unitName);
-            const packageId = normalizedSearch(packages, packName);
-
-            // Check if product already exists by normalized name
-            const existingProduct = (products as Product[]).find(p => normalizeArabic(p.name) === normalizedName);
-
-            const mappedItem = {
-              name: name.trim(),
-              description: description.trim(),
-              categoryId,
-              brandId,
-              unitId,
-              packageId,
-              agentPrice,
-              wholesalePrice,
-              retailPrice,
-              imageUrl: imageUrl || existingProduct?.imageUrl || '',
-              trend: ('stable' as Trend),
-              lastUpdatedAt: serverTimestamp()
-            };
-
-            if (existingProduct) {
-              await updateDoc(doc(db, 'products', existingProduct.id), {
-                ...mappedItem,
-                previousRetailPrice: existingProduct.retailPrice,
-                trend: retailPrice > existingProduct.retailPrice ? 'up' : (retailPrice < existingProduct.retailPrice ? 'down' : 'stable')
-              }).catch(e => {
-                logFirestoreError(e, 'update', `products/${existingProduct.id}`);
-                throw e;
-              });
-              updatedCount++;
-            } else {
-              await addDoc(collection(db, 'products'), {
-                ...mappedItem,
-                previousRetailPrice: retailPrice,
-                variants: [],
-                createdAt: serverTimestamp(),
-              }).catch(e => {
-                logFirestoreError(e, 'create', 'products');
-                throw e;
-              });
-              importedCount++;
-            }
-          } catch (rowErr) {
-            console.error(`Error importing row ${i + 1}:`, rowErr);
-            errors++;
+        const findValueByKeys = (row: any, keys: string[]) => {
+          const rowKeys = Object.keys(row);
+          for (const searchKey of keys) {
+            const searchNorm = normalizeArabic(searchKey);
+            const foundKey = rowKeys.find(rk => normalizeArabic(rk) === searchNorm || normalizeArabic(rk).includes(searchNorm));
+            if (foundKey) return row[foundKey];
           }
+          return "";
+        };
+
+        const cleanPrice = (val: any) => {
+          if (val === undefined || val === null || val === "") return 0;
+          const str = convertArabicNumerals(String(val)).replace(/[^\d.]/g, '');
+          const num = parseFloat(str);
+          return isNaN(num) ? 0 : num;
+        };
+
+        // We'll process in chunks for better performance and Firestore limits
+        const CHUNK_SIZE = 400; // Firestore batch limit is 500
+        for (let i = 0; i < jsonData.length; i += CHUNK_SIZE) {
+          const chunk = jsonData.slice(i, i + CHUNK_SIZE);
+          const batch = writeBatch(db);
+          let opsInBatch = 0;
+
+          for (const row of chunk) {
+            try {
+              const name = String(findValueByKeys(row, fieldMaps.name)).trim();
+              if (!name || name.toLowerCase().includes('مثال')) continue;
+
+              const description = String(findValueByKeys(row, fieldMaps.description)).trim();
+              const catSearch = String(findValueByKeys(row, fieldMaps.category)).trim();
+              const brandSearch = String(findValueByKeys(row, fieldMaps.brand)).trim();
+              const unitSearch = String(findValueByKeys(row, fieldMaps.unit)).trim();
+              const packSearch = String(findValueByKeys(row, fieldMaps.package)).trim();
+
+              const agentPrice = cleanPrice(findValueByKeys(row, fieldMaps.agentPrice));
+              const wholesalePrice = cleanPrice(findValueByKeys(row, fieldMaps.wholesalePrice));
+              const retailPrice = cleanPrice(findValueByKeys(row, fieldMaps.retailPrice));
+              const imageUrl = String(findValueByKeys(row, ['رابط الصورة', 'رابط', 'imageUrl', 'image'])).trim();
+
+              // Resolve IDs
+              const catId = categories.find((c: any) => normalizeArabic(c.name) === normalizeArabic(catSearch))?.id || '';
+              const brandId = brands.find((b: any) => normalizeArabic(b.name) === normalizeArabic(brandSearch))?.id || '';
+              const unitId = units.find((u: any) => normalizeArabic(u.name) === normalizeArabic(unitSearch))?.id || '';
+              const packId = packages.find((pk: any) => normalizeArabic(pk.name) === normalizeArabic(packSearch))?.id || '';
+
+              const existingProduct = products.find((p: any) => normalizeArabic(p.name) === normalizeArabic(name));
+
+              const productData: any = {
+                name: name.slice(0, 500),
+                description: description.slice(0, 5000),
+                categoryId: catId,
+                brandId: brandId,
+                unitId: unitId,
+                packageId: packId,
+                agentPrice,
+                wholesalePrice,
+                retailPrice,
+                imageUrl: imageUrl.length < 30000 ? imageUrl : '',
+                lastUpdatedAt: serverTimestamp()
+              };
+
+              if (existingProduct) {
+                const docRef = doc(db, 'products', existingProduct.id);
+                batch.update(docRef, {
+                  ...productData,
+                  previousRetailPrice: existingProduct.retailPrice,
+                  trend: retailPrice > existingProduct.retailPrice ? 'up' : (retailPrice < existingProduct.retailPrice ? 'down' : 'stable')
+                });
+                updatedCount++;
+              } else {
+                const docRef = doc(collection(db, 'products'));
+                batch.set(docRef, {
+                  ...productData,
+                  id: docRef.id,
+                  previousRetailPrice: retailPrice,
+                  trend: 'stable',
+                  createdAt: serverTimestamp(),
+                  variants: []
+                });
+                importedCount++;
+              }
+              opsInBatch++;
+            } catch (err) {
+              console.error('Row error:', err);
+              errorsCount++;
+            }
+          }
+
+          if (opsInBatch > 0) {
+            await batch.commit();
+          }
+          setImportProgress(Math.min(i + CHUNK_SIZE, jsonData.length));
         }
 
-        let message = `اكتملت العملية بنجاح.`;
-        if (importedCount > 0) message += `\nتم إضافة ${importedCount} منتج جديد.`;
-        if (updatedCount > 0) message += `\nتم تحديث ${updatedCount} منتج موجود.`;
-        if (skippedCount > 0) message += `\nتم تخطي ${skippedCount} أسطر غير صالحة.`;
-        if (errors > 0) message += `\nحدث خطأ في ${errors} أسطر (راجع سجل المتصفح للمزيد من التفاصيل).`;
-        if (missingMeta > 0) message += `\nتنبيه: لم يتم العثور على تطابق لـ ${missingMeta} من الحقول الوصفية (تم تركها فارغة).`;
-        
-        alert(message);
-      } catch (err) {
-        console.error("Critical Import Error:", err);
-        alert('حدث خطأ فادح أثناء معالجة الملف: ' + (err instanceof Error ? err.message : String(err)));
+        alert(`تم الانتهاء!
+تم إضافة: ${importedCount}
+تم تحديث: ${updatedCount}
+الأخطاء: ${errorsCount}`);
+
+      } catch (error) {
+        console.error('Import Error:', error);
+        alert('حدث خطأ أثناء الاستيراد: ' + (error instanceof Error ? error.message : String(error)));
       } finally {
         setImporting(false);
         setImportProgress(0);
@@ -773,10 +762,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
         if (e.target) e.target.value = '';
       }
     };
-    reader.onerror = () => {
-      alert('خطأ في قراءة ملف Excel من القرص');
-      setImporting(false);
-    };
+
     reader.readAsArrayBuffer(file);
   };
 
@@ -926,7 +912,14 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
                   <button onClick={() => { setEditingProduct(p); setShowForm(true); }} className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-neutral-900 dark:hover:bg-white hover:text-white dark:hover:text-neutral-900 transition-all">
                     <Edit2 size={16} />
                   </button>
-                  <button onClick={() => handleDelete(p.id)} className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(p.id, p.name);
+                    }} 
+                    className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                    title="حذف المنتج"
+                  >
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -997,15 +990,81 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 1024 * 1024 * 5) {
+      alert('حجم الملف كبير جداً');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      setFormData({ ...formData, imageUrl: event.target?.result as string });
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Target a small size to stay under 32KB limit
+        const MAX_SIZE = 300; 
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.5;
+        let compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        
+        while (compressedBase64.length > 30000 && quality > 0.1) {
+          quality -= 0.1;
+          compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        if (compressedBase64.length > 32767) {
+          const tinyCanvas = document.createElement('canvas');
+          tinyCanvas.width = 150;
+          tinyCanvas.height = (150 / width) * height;
+          tinyCanvas.getContext('2d')?.drawImage(canvas, 0, 0, tinyCanvas.width, tinyCanvas.height);
+          compressedBase64 = tinyCanvas.toDataURL('image/jpeg', 0.2);
+        }
+
+        if (compressedBase64.length <= 32767) {
+          setFormData({ ...formData, imageUrl: compressedBase64 });
+        } else {
+          alert('تعذر ضغط الصورة بشكل كافٍ. يرجى اختيار صورة أصغر.');
+        }
+      };
+      img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if any field exceeds limit
+    const oversizeFields: string[] = [];
+    Object.entries(formData).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.length > 32767) {
+        oversizeFields.push(key);
+      }
+    });
+
+    if (oversizeFields.length > 0) {
+      alert(`عفواً! الحقول التالية تجاوزت الحد المسموح به: ${oversizeFields.join(', ')}. يرجى تقليل حجم البيانات أو اختيار صورة أصغر.`);
+      return;
+    }
+
     const data = {
       ...formData,
       agentPrice: Number(formData.agentPrice),
@@ -1094,7 +1153,15 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
                         <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                       </label>
                       {formData.imageUrl && (
-                        <button type="button" onClick={() => setFormData({...formData, imageUrl: ''})} className="p-4 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-100 transition-colors">
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (window.confirm('هل تريد إزالة الصورة؟')) {
+                              setFormData({...formData, imageUrl: ''});
+                            }
+                          }} 
+                          className="p-4 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
+                        >
                           <Trash2 size={18} />
                         </button>
                       )}
@@ -1175,7 +1242,15 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
                   <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
                     {formData.variants.map((v: any, index: number) => (
                       <div key={index} className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 p-5 rounded-[24px] shadow-sm flex flex-col gap-4 relative group">
-                        <button type="button" onClick={() => removeVariant(index)} className="absolute -top-2 -left-2 p-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full hover:bg-red-100 transition-colors opacity-0 group-hover:opacity-100">
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (window.confirm('هل تريد حذف هذا الحجم؟')) {
+                              removeVariant(index);
+                            }
+                          }} 
+                          className="absolute -top-2 -left-2 p-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full hover:bg-red-100 transition-colors opacity-0 group-hover:opacity-100"
+                        >
                           <X size={14} />
                         </button>
                         <Select 
@@ -1304,7 +1379,11 @@ function ExchangeRateManager({ rates }: any) {
                   <Edit2 size={16} />
                 </button>
                 <button 
-                  onClick={() => deleteDoc(doc(db, 'exchangeRates', r.id))} 
+                  onClick={() => {
+                    if (window.confirm('هل أنت متأكد من حذف سعر الصرف هذا؟')) {
+                      deleteDoc(doc(db, 'exchangeRates', r.id));
+                    }
+                  }} 
                   className="p-2.5 bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
                 >
                   <Trash2 size={16} />
@@ -1344,21 +1423,25 @@ function ExchangeRateManager({ rates }: any) {
   );
 }
 
-function MetaManager({ categories, brands, units, packages }: any) {
-  const [activeMeta, setActiveMeta] = useState<'categories' | 'brands' | 'units' | 'packages'>('categories');
+function MetaManager({ categories, brands, units, packages, reportTypes, governorates, districts }: any) {
+  const [activeMeta, setActiveMeta] = useState<'categories' | 'brands' | 'units' | 'packages' | 'report_types' | 'governorates' | 'districts'>('categories');
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [inputValue, setInputValue] = useState('');
   const [iconValue, setIconValue] = useState('📦');
+  const [selectedGovernorate, setSelectedGovernorate] = useState('');
 
   const metaSections = [
     { id: 'categories', label: 'الأقسام الرئيسية', icon: <Tags size={18} />, color: 'text-purple-500', bg: 'bg-purple-50', desc: 'إدارة تصنيفات السلع والمنتجات' },
     { id: 'brands', label: 'العلامات التجارية', icon: <ShieldCheck size={18} />, color: 'text-blue-500', bg: 'bg-blue-50', desc: 'إدارة الشركات والماركات التجارية' },
     { id: 'units', label: 'وحدات القياس', icon: <Ruler size={18} />, color: 'text-orange-500', bg: 'bg-orange-50', desc: 'إدارة وحدات الكيل، الوزن، والسعة' },
     { id: 'packages', label: 'أنواع العبوات', icon: <Box size={18} />, color: 'text-green-500', bg: 'bg-green-50', desc: 'إدارة أشكال وأحجام التغليف' },
+    { id: 'report_types', label: 'أنواع البلاغات', icon: <AlertTriangle size={18} />, color: 'text-red-500', bg: 'bg-red-50', desc: 'إدارة أنواع الشكاوي والبلاغات' },
+    { id: 'governorates', label: 'المحافظات', icon: <MapPin size={18} />, color: 'text-indigo-500', bg: 'bg-indigo-50', desc: 'إدارة محافظات الجمهورية' },
+    { id: 'districts', label: 'المديريات', icon: <MapPin size={18} />, color: 'text-violet-500', bg: 'bg-violet-50', desc: 'إدارة المديريات التابعة للمحافظات' },
   ];
 
-  const collectionNames = { categories, brands, units, packages };
+  const collectionNames = { categories, brands, units, packages, report_types: reportTypes, governorates, districts };
   const currentItems = (collectionNames as any)[activeMeta];
   const activeSection = metaSections.find(s => s.id === activeMeta);
 
@@ -1366,6 +1449,7 @@ function MetaManager({ categories, brands, units, packages }: any) {
     setEditingItem(item);
     setInputValue(item ? item.name : '');
     setIconValue(item?.icon || '📦');
+    setSelectedGovernorate(item?.governorateId || '');
     setShowForm(true);
   };
 
@@ -1375,6 +1459,13 @@ function MetaManager({ categories, brands, units, packages }: any) {
 
     const data: any = { name: inputValue.trim() };
     if (activeMeta === 'categories') data.icon = iconValue;
+    if (activeMeta === 'districts') {
+      if (!selectedGovernorate) {
+        alert('يرجى اختيار المحافظة');
+        return;
+      }
+      data.governorateId = selectedGovernorate;
+    }
 
     if (editingItem) {
       await updateDoc(doc(db, activeMeta, editingItem.id), data);
@@ -1415,6 +1506,31 @@ function MetaManager({ categories, brands, units, packages }: any) {
       { name: 'دبة 20 لتر' }
     ];
     for (const p of packagesData) await addDoc(collection(db, 'packages'), p);
+
+    const reportTypesData = [
+      { name: 'رفع سعر' },
+      { name: 'سلعة منتهية' },
+      { name: 'احتكار' },
+      { name: 'غش تجاري' },
+      { name: 'اختلاف سعر' },
+      { name: 'منتج مفقود' }
+    ];
+    for (const rt of reportTypesData) await addDoc(collection(db, 'report_types'), rt);
+
+    const YEMEN_INIT: Record<string, string[]> = {
+      "صنعاء - الأمانة": ["السبعين", "التحرير", "الثورة", "شعوب"],
+      "عدن": ["المنصورة", "الشيخ عثمان", "كريتر", "المعلا"],
+      "تعز": ["المظفر", "القاهرة", "صالة"],
+      "حضرموت": ["المكلا", "سيئون", "تريم"],
+      "الحديدة": ["الحالي", "الحوك", "الميناء"],
+    };
+
+    for (const [gov, dists] of Object.entries(YEMEN_INIT)) {
+      const gRef = await addDoc(collection(db, 'governorates'), { name: gov });
+      for (const dst of dists) {
+        await addDoc(collection(db, 'districts'), { name: dst, governorateId: gRef.id });
+      }
+    }
 
     alert('تمت تهيئة البيانات بنجاح!');
   };
@@ -1498,6 +1614,11 @@ function MetaManager({ categories, brands, units, packages }: any) {
                     )}
                     <div className="flex flex-col">
                       <h4 className="font-bold text-neutral-800 text-sm leading-tight">{item.name}</h4>
+                      {activeMeta === 'districts' && (
+                        <p className="text-[10px] font-bold text-primary-500 mt-1">
+                          {governorates.find((g: any) => g.id === item.governorateId)?.name || 'غير محدد'}
+                        </p>
+                      )}
                       <p className="text-[9px] font-bold text-neutral-300 uppercase tracking-widest mt-1">المعرف: {item.id.substring(0, 8)}</p>
                     </div>
                   </div>
@@ -1595,6 +1716,24 @@ function MetaManager({ categories, brands, units, packages }: any) {
                     placeholder="أدخل الاسم بوضوح..." 
                   />
                 </div>
+
+                {activeMeta === 'districts' && (
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">المحافظة التابعة لها</label>
+                    <div className="relative">
+                      <select
+                        required
+                        value={selectedGovernorate}
+                        onChange={(e) => setSelectedGovernorate(e.target.value)}
+                        className="w-full bg-neutral-50 border border-neutral-100 rounded-[24px] px-8 py-5 font-bold text-neutral-900 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all shadow-inner appearance-none"
+                      >
+                        <option value="">اختر المحافظة...</option>
+                        {governorates.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                      </select>
+                      <ChevronDown size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
               </div>
               
               <button className="bg-neutral-900 text-white py-6 rounded-[32px] font-display font-black text-lg shadow-2xl shadow-neutral-300 hover:translate-y-[-4px] transition-all active:scale-[0.98] mt-4">
@@ -1609,6 +1748,175 @@ function MetaManager({ categories, brands, units, packages }: any) {
 }
 
 // UI Helpers (Refined for Admin)
+function ReportStatsCard() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    return onSnapshot(collection(db, 'reports'), (s) => setCount(s.size));
+  }, []);
+  return <StatCard label="البلاغات الجديدة" value={count} color="bg-red-500" icon={<AlertTriangle size={20} />} trend={count > 0 ? 'up' : 'stable'} />;
+}
+
+function ReportManager() {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [filterStatus, setFilterStatus] = useState<ReportStatus | 'all'>('all');
+
+  useEffect(() => {
+    return onSnapshot(collection(db, 'reports'), (s) => {
+      setReports(s.docs.map(d => ({ id: d.id, ...d.data() } as Report)).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+    });
+  }, []);
+
+  const filtered = reports.filter(r => filterStatus === 'all' || r.status === filterStatus);
+
+  const updateStatus = async (id: string, status: ReportStatus) => {
+    await updateDoc(doc(db, 'reports', id), { status });
+  };
+
+  const getStatusInfo = (status: ReportStatus) => {
+    switch (status) {
+      case 'new': return { label: 'جديد', color: 'bg-blue-500', icon: <Plus size={10} /> };
+      case 'review': return { label: 'قيد المراجعة', color: 'bg-amber-500', icon: <Clock size={10} /> };
+      case 'resolved': return { label: 'تم الحل', color: 'bg-green-500', icon: <CheckCircle2 size={10} /> };
+      case 'rejected': return { label: 'مرفوض', color: 'bg-red-500', icon: <AlertCircle size={10} /> };
+    }
+  };
+
+  const getTypeText = (type: string) => {
+    return type;
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm">
+        <h3 className="text-xl font-display font-black flex items-center gap-3 dark:text-white">
+          <div className="p-2 bg-red-500 text-white rounded-lg">
+            <AlertTriangle size={18} />
+          </div>
+          إدارة البلاغات
+          <span className="bg-neutral-50 dark:bg-neutral-800 text-neutral-400 text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider">{reports.length}</span>
+        </h3>
+        <div className="flex gap-2">
+          {(['all', 'new', 'review', 'resolved', 'rejected'] as const).map(s => (
+            <button 
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-bold transition-all",
+                filterStatus === s 
+                  ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" 
+                  : "bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100"
+              )}
+            >
+              {s === 'all' ? 'الكل' : getStatusInfo(s as ReportStatus).label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {filtered.map(r => {
+          const status = getStatusInfo(r.status);
+          return (
+            <div key={r.id} className="bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 flex flex-col gap-5 shadow-sm group">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn("px-2.5 py-1 rounded-full text-white text-[9px] font-black flex items-center gap-1.5", status.color)}>
+                    {status.icon}
+                    {status.label}
+                  </div>
+                  <span className="text-[10px] font-black text-neutral-300 dark:text-neutral-600 uppercase tracking-widest">
+                    #{r.id.substring(0, 6)}
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold text-neutral-400">
+                  {r.createdAt ? new Date(r.createdAt.seconds * 1000).toLocaleString('ar-YE') : 'الآن'}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h4 className="text-lg font-bold text-neutral-900 dark:text-white">{r.itemName}</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="px-3 py-1 bg-neutral-50 dark:bg-neutral-800 rounded-lg text-[10px] font-bold text-red-500">{getTypeText(r.reportType)}</span>
+                    <span className="px-3 py-1 bg-neutral-50 dark:bg-neutral-800 rounded-lg text-[10px] font-bold text-neutral-500">{r.currentPrice} ريال</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">المُبلغ</span>
+                    <span className="text-xs font-bold dark:text-white">{r.reporterName}</span>
+                    <span className="text-[10px] font-medium text-neutral-500">{r.reporterPhone}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">المتجر / الموقع</span>
+                    <span className="text-xs font-bold dark:text-white">{r.storeName || 'غير محدد'}</span>
+                    <span className="text-[10px] font-medium text-neutral-500">{r.governorate} - {r.district}</span>
+                  </div>
+                </div>
+
+                {r.description && (
+                  <div className="text-sm p-4 text-neutral-600 dark:text-neutral-400 bg-neutral-50/50 dark:bg-neutral-800/50 rounded-2xl border border-dashed border-neutral-100 dark:border-white/5">
+                    {r.description}
+                  </div>
+                )}
+
+                {r.imageUrl && (
+                  <div className="relative aspect-video rounded-2xl overflow-hidden shadow-inner">
+                    <img 
+                      src={r.imageUrl} 
+                      alt="مرفق البلاغ" 
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-4 border-t border-neutral-100 dark:border-white/5">
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => updateStatus(r.id, 'review')}
+                      disabled={r.status === 'review'}
+                      className="px-4 py-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 text-xs font-bold rounded-xl hover:bg-amber-100 transition-colors disabled:opacity-30"
+                    >
+                      مراجعة
+                    </button>
+                    <button 
+                      onClick={() => updateStatus(r.id, 'resolved')}
+                      disabled={r.status === 'resolved'}
+                      className="px-4 py-2 bg-green-50 dark:bg-green-500/10 text-green-600 text-xs font-bold rounded-xl hover:bg-green-100 transition-colors disabled:opacity-30"
+                    >
+                      تم الحل
+                    </button>
+                    <button 
+                      onClick={() => updateStatus(r.id, 'rejected')}
+                      disabled={r.status === 'rejected'}
+                      className="px-4 py-2 bg-red-50 dark:bg-red-500/10 text-red-600 text-xs font-bold rounded-xl hover:bg-red-100 transition-colors disabled:opacity-30"
+                    >
+                      رفض
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if(window.confirm('حذف البلاغ نهائياً؟')) deleteDoc(doc(db, 'reports', r.id));
+                    }}
+                    className="p-2 text-neutral-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="col-span-full py-40 text-center italic text-neutral-400">لا توجد بلاغات حالياً</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const Input = ({ label, ...props }: any) => (
   <div className="flex flex-col gap-2 md:gap-3">
     <label className="text-[10px] md:text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mr-4 md:mr-5">{label}</label>

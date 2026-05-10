@@ -1,18 +1,52 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { ExchangeRateWidget } from '../components/ExchangeRateWidget';
 import { CategoryGrid } from '../components/CategoryGrid';
 import { Layout } from '../components/Layout';
-import { Package, LineChart, ShieldAlert, History, TrendingUp } from 'lucide-react';
+import { 
+  Package, 
+  LineChart, 
+  ShieldAlert, 
+  History, 
+  TrendingUp, 
+  Search, 
+  Filter, 
+  AlertTriangle,
+  ChevronDown,
+  X,
+  Tags,
+  Box
+} from 'lucide-react';
+import { ReportForm } from '../components/ReportForm';
+import { motion, AnimatePresence } from 'motion/react';
+import { ProductCard } from '../components/ProductCard';
+import { cn } from '../lib/utils';
 
 export function Dashboard() {
-  const { categories, products, exchangeRates } = useData();
+  const { categories, products, exchangeRates, brands } = useData();
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  
+  // Search and Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedBrand, setSelectedBrand] = useState<string>('all');
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   const latestProductUpdate = products.length > 0 
     ? Math.max(...products.map(p => p.lastUpdatedAt?.seconds || 0))
     : 0;
   
   const lastUpdateDate = latestProductUpdate > 0 ? new Date(latestProductUpdate * 1000) : null;
+
+  // Filtered Products
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
+      const matchesBrand = selectedBrand === 'all' || p.brandId === selectedBrand;
+      return matchesSearch && matchesCategory && matchesBrand;
+    });
+  }, [products, searchQuery, selectedCategory, selectedBrand]);
 
   return (
     <Layout>
@@ -23,14 +57,13 @@ export function Dashboard() {
             <h2 className="text-[28px] md:text-3xl font-display font-black text-neutral-900 dark:text-white tracking-tight leading-tight transition-colors">
               سوق الأسعار <span className="text-primary-500">اليمني</span>
             </h2>
-            {lastUpdateDate && (
-              <div className="flex items-center gap-2 bg-primary-50 dark:bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-100 dark:border-primary-500/10">
-                <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
-                <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-wider">
-                  محدث {lastUpdateDate.toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            )}
+            <button 
+              onClick={() => setIsReportOpen(true)}
+              className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-2xl text-xs font-black shadow-lg shadow-red-200 dark:shadow-none hover:scale-105 active:scale-95 transition-all"
+            >
+              <AlertTriangle size={14} />
+              إبلاغ عن حالة
+            </button>
           </div>
           <p className="text-sm font-medium text-neutral-400 dark:text-neutral-500 transition-colors">تابع تحركات السوق والعملات لحظة بلحظة</p>
         </header>
@@ -41,67 +74,135 @@ export function Dashboard() {
           <ExchangeRateWidget rates={exchangeRates} />
         </div>
 
-        {/* Quick Stats Summary - Hidden by user request 
-        <div className="grid grid-cols-2 gap-4">
-          <StatSummaryBox 
-            label="إجمالي الأصناف" 
-            value={products.length} 
-            icon={<Package size={16} className="text-neutral-400" />} 
-          />
-          <StatSummaryBox 
-            label="تغيرات اليوم" 
-            value={products.filter(p => p.trend !== 'stable').length} 
-            icon={<LineChart size={16} className="text-neutral-400" />} 
-            isHighlight
-          />
-        </div>
-        */}
+        {/* Search and Filters Section */}
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-2">
+            <div className="relative flex-1 group">
+               <input 
+                 type="text" 
+                 placeholder="ابحث عن اسم المنتج..." 
+                 className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-[24px] px-5 py-4 text-sm font-bold pr-12 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all dark:text-white shadow-sm group-hover:border-neutral-200 dark:group-hover:border-white/10"
+                 value={searchQuery}
+                 onChange={e => setSearchQuery(e.target.value)}
+               />
+               <Search size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary-500 transition-colors" />
+               {searchQuery && (
+                 <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
+                 >
+                   <X size={16} />
+                 </button>
+               )}
+            </div>
+            <button 
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+              className={cn(
+                "p-4 rounded-[24px] border transition-all flex items-center justify-center shadow-sm",
+                isFilterExpanded 
+                  ? "bg-primary-500 text-white border-primary-500" 
+                  : "bg-white dark:bg-neutral-900 border-neutral-100 dark:border-white/5 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50"
+              )}
+            >
+              <Filter size={20} />
+            </button>
+          </div>
 
-        {/* Categories Section */}
+          <AnimatePresence>
+            {isFilterExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-2 pt-1 px-1">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest px-2 flex items-center gap-2">
+                      <Tags size={12} /> تصنيف حسب القسم
+                    </label>
+                    <div className="relative">
+                      <select 
+                        value={selectedCategory}
+                        onChange={e => setSelectedCategory(e.target.value)}
+                        className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-2xl px-4 py-3 text-xs font-bold appearance-none dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500 shadow-sm"
+                      >
+                        <option value="all">كل الأقسام</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      <ChevronDown size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest px-2 flex items-center gap-2">
+                      <Box size={12} /> فلترة بالعلامة التجارية
+                    </label>
+                    <div className="relative">
+                      <select 
+                        value={selectedBrand}
+                        onChange={e => setSelectedBrand(e.target.value)}
+                        className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-2xl px-4 py-3 text-xs font-bold appearance-none dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500 shadow-sm"
+                      >
+                        <option value="all">كل العلامات</option>
+                        {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                      <ChevronDown size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Results Section */}
         <div className="flex flex-col gap-6">
           <div className="flex items-center justify-between mb-2 px-1">
             <h3 className="text-xl font-display font-black text-neutral-800 dark:text-neutral-100 transition-colors flex items-center gap-2">
-              <div className="p-1.5 bg-primary-500 text-white rounded-lg">
-                <TrendingUp size={16} />
-              </div>
-              الأقسام الرئيسية
+              {searchQuery || selectedCategory !== 'all' || selectedBrand !== 'all' 
+                ? `نتائج البحث (${filteredProducts.length})` 
+                : 'الأصناف المميزة'}
             </h3>
-            <div className="h-px flex-1 mx-4 bg-neutral-100 dark:bg-white/5 hidden sm:block"></div>
-            <span className="text-[10px] font-black text-neutral-300 dark:text-neutral-600 uppercase tracking-widest bg-neutral-50 dark:bg-neutral-900 px-2 py-1 rounded-lg transition-all">استعراض</span>
+            { (searchQuery || selectedCategory !== 'all' || selectedBrand !== 'all') && (
+              <button 
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('all');
+                  setSelectedBrand('all');
+                }}
+                className="text-[10px] font-black text-primary-500 uppercase tracking-widest bg-primary-50 dark:bg-primary-500/10 px-3 py-1.5 rounded-full hover:bg-primary-100 transition-all"
+              >
+                إلغاء التصفية
+              </button>
+            )}
           </div>
-          <CategoryGrid categories={categories} products={products} />
+          
+          {filteredProducts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredProducts.slice(0, 20).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <div className="py-20 flex flex-col items-center justify-center text-center gap-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-[40px] border border-dashed border-neutral-200 dark:border-white/5">
+              <div className="bg-white dark:bg-neutral-800 p-6 rounded-full shadow-lg">
+                <Search size={40} className="text-neutral-300" />
+              </div>
+              <div>
+                <h4 className="font-bold text-neutral-800 dark:text-neutral-200">لا توجد نتائج</h4>
+                <p className="text-xs text-neutral-400 mt-1">جرب تغيير معايير البحث أو الفلترة</p>
+              </div>
+            </div>
+          )}
+
+          {filteredProducts.length > 20 && (
+            <p className="text-center text-[10px] text-neutral-400 font-bold uppercase tracking-widest mt-4">استخدم البحث والفلترة لتضييق النتائج</p>
+          )}
         </div>
 
-        {/* Global Last Update Footer - PROMINENT */}
-        {lastUpdateDate && (
-          <div className="mt-4 mb-20 relative overflow-hidden group">
-            <div className="absolute inset-0 bg-neutral-900 dark:bg-white rounded-[40px] transform transition-transform duration-700 group-hover:scale-[1.02] shadow-2xl"></div>
-            <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12 transition-transform duration-700 group-hover:scale-150 text-white dark:text-neutral-900">
-              <History size={120} />
-            </div>
-            <div className="relative z-10 p-10 flex flex-col items-center text-center gap-4">
-              <div className="px-5 py-2 bg-white/10 dark:bg-neutral-900/10 rounded-full border border-white/10 dark:border-neutral-900/10 backdrop-blur-md">
-                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary-400">تحديثات البيانات والأسعار</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <h4 className="text-2xl md:text-4xl font-display font-black text-white dark:text-neutral-900 tracking-tight">
-                  آخر تحديث: {lastUpdateDate.toLocaleDateString('ar-YE', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </h4>
-                <div className="flex items-center justify-center gap-3 mt-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500">مزامنة نشطة</span>
-                  </div>
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/20 dark:bg-neutral-900/20" />
-                  <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500">تم في {lastUpdateDate.toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Warning / Memo */}
-        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 p-4 rounded-2xl flex gap-3 items-start transition-colors">
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 p-4 rounded-2xl flex gap-3 items-start transition-colors mb-10">
           <ShieldAlert className="text-amber-500 flex-shrink-0" size={20} />
           <div>
             <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400">تنويه هام</h4>
@@ -111,6 +212,8 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      <ReportForm isOpen={isReportOpen} onClose={() => setIsReportOpen(false)} />
     </Layout>
   );
 }

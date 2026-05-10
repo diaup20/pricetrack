@@ -53,8 +53,8 @@ export function ProductListItem({ product }: ProductListItemProps) {
              {unit?.name} {pack?.name}
           </span>
           {brand && (
-            <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-medium flex items-center gap-1">
-              <Tag size={10} className="opacity-50" /> {brand.name}
+            <span className="text-[11px] bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-lg text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-100/50 dark:border-indigo-500/20 flex items-center gap-1 shadow-sm">
+              <Tag size={10} className="opacity-70" /> {brand.name}
             </span>
           )}
         </div>
@@ -62,14 +62,10 @@ export function ProductListItem({ product }: ProductListItemProps) {
 
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
         <div className="flex items-center gap-2 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 rounded-xl border border-neutral-100 dark:border-white/5">
-          <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-tighter">سعر التجزئة</span>
+          <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-tighter">سعر المستهلك</span>
           <span className="font-accent font-black text-base text-neutral-900 dark:text-white">
             {formatCurrency(product.retailPrice)}
           </span>
-        </div>
-        <div className="flex gap-2 pr-1">
-          <span className="text-[10px] font-bold text-blue-500/80">وكيل: {formatCurrency(product.agentPrice)}</span>
-          <span className="text-[10px] font-bold text-indigo-500/80">جملة: {formatCurrency(product.wholesalePrice)}</span>
         </div>
       </div>
     </motion.div>

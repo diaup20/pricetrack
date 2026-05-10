@@ -44,45 +44,34 @@ export function ProductCard({ product }: ProductCardProps) {
       animate={{ opacity: 1, y: 0 }}
       className="bg-white dark:bg-neutral-900 rounded-2xl p-4 shadow-sm border border-neutral-100 dark:border-white/5 flex flex-col gap-3 transition-colors"
     >
-      <div className="flex gap-4">
-        {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            referrerPolicy="no-referrer"
-            className="w-20 h-20 rounded-2xl object-cover bg-neutral-50 dark:bg-neutral-800 shadow-sm"
-          />
-        ) : (
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center text-neutral-300 dark:text-neutral-700">
-            <PackageIcon size={32} />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
             <h3 className="font-display font-bold text-lg leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
-            <div className="flex flex-col items-center gap-1">
-              <TrendIndicator trend={product.trend} className="w-7 h-7 flex-shrink-0 shadow-lg shadow-neutral-100 dark:shadow-none" />
-              <span className={cn(
-                "text-[7px] font-black uppercase tracking-tighter",
-                product.trend === 'up' ? "text-red-500" : product.trend === 'down' ? "text-green-500" : "text-neutral-300"
-              )}>
-                {product.trend === 'up' ? 'مرتفع' : product.trend === 'down' ? 'منخفض' : 'مستقر'}
-              </span>
-            </div>
+            <p className="text-xs text-neutral-400 dark:text-neutral-500 font-medium line-clamp-1 mt-0.5">{product.description || 'لا يوجد وصف متاح لهذا المنتج'}</p>
           </div>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500 font-medium line-clamp-1 mt-0.5">{product.description || 'لا يوجد وصف متاح لهذا المنتج'}</p>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {category && (
-              <span className="text-[10px] bg-sky-50 dark:bg-sky-500/10 px-2.5 py-0.5 rounded-lg text-sky-600 dark:text-sky-400 font-bold border border-sky-100/50 dark:border-sky-500/20 flex items-center gap-1">
-                {category.icon} {category.name}
-              </span>
-            )}
-            {brand && (
-              <span className="text-[10px] bg-neutral-50 dark:bg-neutral-800 px-2.5 py-0.5 rounded-lg text-neutral-500 dark:text-neutral-400 font-bold border border-neutral-100 dark:border-white/5 flex items-center gap-1">
-                <Tag size={10} className="opacity-50" /> {brand.name}
-              </span>
-            )}
+          <div className="flex flex-col items-center gap-1">
+            <TrendIndicator trend={product.trend} className="w-7 h-7 flex-shrink-0 shadow-lg shadow-neutral-100 dark:shadow-none" />
+            <span className={cn(
+              "text-[7px] font-black uppercase tracking-tighter",
+              product.trend === 'up' ? "text-red-500" : product.trend === 'down' ? "text-green-500" : "text-neutral-300"
+            )}>
+              {product.trend === 'up' ? 'مرتفع' : product.trend === 'down' ? 'منخفض' : 'مستقر'}
+            </span>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {category && (
+            <span className="text-[10px] bg-sky-50 dark:bg-sky-500/10 px-2.5 py-0.5 rounded-lg text-sky-600 dark:text-sky-400 font-bold border border-sky-100/50 dark:border-sky-500/20 flex items-center gap-1">
+              {category.icon} {category.name}
+            </span>
+          )}
+          {brand && (
+            <span className="text-[10px] bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-0.5 rounded-lg text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-100/50 dark:border-indigo-500/20 flex items-center gap-1 shadow-sm">
+              <Tag size={10} className="opacity-70" /> {brand.name}
+            </span>
+          )}
         </div>
       </div>
 
@@ -113,10 +102,8 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2 bg-white dark:bg-transparent rounded-xl">
-        <PriceBox label="وكيل" price={currentPrices.agent} type="agent" />
-        <PriceBox label="جملة" price={currentPrices.wholesale} type="wholesale" />
-        <PriceBox label="تجزئة" price={currentPrices.retail} type="retail" />
+      <div className="bg-white dark:bg-transparent rounded-xl">
+        <PriceBox label="سعر المستهلك (تجزئة)" price={currentPrices.retail} type="retail" />
       </div>
 
       <div className="flex items-center justify-between text-[11px] border-t border-dashed border-neutral-100 dark:border-white/5 pt-2 transition-colors">
