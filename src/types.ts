@@ -26,6 +26,8 @@ export interface ProductVariant {
   agentPrice: number;
   wholesalePrice: number;
   retailPrice: number;
+  previousRetailPrice: number;
+  trend: Trend;
 }
 
 export interface Product {

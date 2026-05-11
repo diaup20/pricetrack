@@ -26,6 +26,8 @@ import {
   Box, 
   Ruler, 
   TrendingUp, 
+  TrendingDown,
+  Minus,
   ShieldCheck, 
   LineChart, 
   Users as UsersIcon, 
@@ -550,7 +552,8 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
         'نوع العبوة': t(packages.find((pk: any) => pk.id === p.packageId)?.name || ''),
         'سعر الوكيل': p.agentPrice || 0,
         'سعر الجملة': p.wholesalePrice || 0,
-        'سعر المستهلك (تجزئة)': p.retailPrice || 0,
+        'سعر المستهلك': p.retailPrice || 0,
+        'السعر السابق': p.previousRetailPrice || 0,
         'رابط الصورة': t(p.imageUrl || ''),
       }));
 
@@ -568,6 +571,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
         { wch: 12 }, // Agent
         { wch: 12 }, // Wholesale
         { wch: 12 }, // Retail
+        { wch: 12 }, // Previous Price
         { wch: 25 }, // Image
       ];
       ws['!cols'] = colWidths;
@@ -590,6 +594,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
       'سعر الوكيل': 500,
       'سعر الجملة': 550,
       'سعر المستهلك': 600,
+      'السعر السابق': 650,
       'رابط الصورة': 'رابط مباشر للصورة (اختياري)'
     }];
     const ws = XLSX.utils.json_to_sheet(templateData);
@@ -597,7 +602,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
     XLSX.utils.book_append_sheet(wb, ws, "نموذج الاستيراد");
     ws['!cols'] = [
       { wch: 25 }, { wch: 35 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, 
-      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }
+      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }
     ];
     XLSX.writeFile(wb, 'نموذج_استيراد_منتجات_سوق_اليمن.xlsx');
   };
@@ -649,7 +654,8 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
           package: ['العبوة', 'نوع العبوة', 'package', 'pack'],
           agentPrice: ['سعر الوكيل', 'وكيل', 'agentPrice'],
           wholesalePrice: ['سعر الجملة', 'جملة', 'wholesalePrice'],
-          retailPrice: ['سعر المستهلك', 'السعر', 'تجزئة', 'retailPrice']
+          retailPrice: ['سعر المستهلك', 'السعر', 'تجزئة', 'retailPrice'],
+          previousRetailPrice: ['السعر السابق', 'تجزئة سابق', 'previousRetailPrice']
         };
 
         const findValueByKeys = (row: any, keys: string[]) => {
@@ -690,6 +696,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
               const agentPrice = cleanPrice(findValueByKeys(row, fieldMaps.agentPrice));
               const wholesalePrice = cleanPrice(findValueByKeys(row, fieldMaps.wholesalePrice));
               const retailPrice = cleanPrice(findValueByKeys(row, fieldMaps.retailPrice));
+              const importedPreviousPrice = cleanPrice(findValueByKeys(row, fieldMaps.previousRetailPrice));
               const imageUrl = String(findValueByKeys(row, ['رابط الصورة', 'رابط', 'imageUrl', 'image'])).trim();
 
               // Resolve IDs
@@ -716,19 +723,21 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
 
               if (existingProduct) {
                 const docRef = doc(db, 'products', existingProduct.id);
+                const finalPreviousPrice = importedPreviousPrice || existingProduct.retailPrice;
                 batch.update(docRef, {
                   ...productData,
-                  previousRetailPrice: existingProduct.retailPrice,
-                  trend: retailPrice > existingProduct.retailPrice ? 'up' : (retailPrice < existingProduct.retailPrice ? 'down' : 'stable')
+                  previousRetailPrice: finalPreviousPrice,
+                  trend: retailPrice > finalPreviousPrice ? 'up' : (retailPrice < finalPreviousPrice ? 'down' : 'stable')
                 });
                 updatedCount++;
               } else {
                 const docRef = doc(collection(db, 'products'));
+                const finalPreviousPrice = importedPreviousPrice || retailPrice;
                 batch.set(docRef, {
                   ...productData,
                   id: docRef.id,
-                  previousRetailPrice: retailPrice,
-                  trend: 'stable',
+                  previousRetailPrice: finalPreviousPrice,
+                  trend: retailPrice > finalPreviousPrice ? 'up' : (retailPrice < finalPreviousPrice ? 'down' : 'stable'),
                   createdAt: serverTimestamp(),
                   variants: []
                 });
@@ -935,8 +944,31 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
                   <span className="text-xs font-black text-indigo-600 leading-normal">{p.wholesalePrice.toLocaleString()}</span>
                 </div>
                 <div className="flex flex-col gap-0.5 items-center justify-center">
-                  <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest leading-none">تجزئة</span>
-                  <span className="text-xs font-black text-neutral-900 dark:text-white leading-normal">{p.retailPrice.toLocaleString()}</span>
+                  <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest leading-none">سعر المستهلك</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-sm font-black text-neutral-900 dark:text-white leading-normal">{p.retailPrice.toLocaleString()}</span>
+                    <div className={cn(
+                      "flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border",
+                      p.trend === 'up' ? "bg-red-50 text-red-600 border-red-100 dark:bg-red-500/10 dark:border-red-500/20" :
+                      p.trend === 'down' ? "bg-green-50 text-green-600 border-green-100 dark:bg-green-500/10 dark:border-green-500/20" :
+                      "bg-neutral-50 text-neutral-400 border-neutral-100 dark:bg-neutral-800 dark:border-white/5"
+                    )}>
+                      {p.trend === 'up' && <TrendingUp size={10} />}
+                      {p.trend === 'down' && <TrendingDown size={10} />}
+                      {p.trend === 'stable' && <Minus size={10} />}
+                      <span className="text-[7px] font-black uppercase">
+                        {p.trend === 'up' ? 'مرتفع' : p.trend === 'down' ? 'منخفض' : 'مستقر'}
+                      </span>
+                    </div>
+                  </div>
+                  {p.previousRetailPrice !== p.retailPrice && (
+                    <div className="flex items-center gap-1 mt-0.5 opacity-50">
+                      <span className="text-[7px] font-bold">سابق:</span>
+                      <span className="text-[9px] font-black text-neutral-400 line-through">
+                        {p.previousRetailPrice.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -961,16 +993,24 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
     agentPrice: initialData?.agentPrice || 0,
     wholesalePrice: initialData?.wholesalePrice || 0,
     retailPrice: initialData?.retailPrice || 0,
+    previousRetailPrice: initialData?.previousRetailPrice || initialData?.retailPrice || 0,
     imageUrl: initialData?.imageUrl || '',
     description: initialData?.description || '',
     trend: initialData?.trend || 'stable' as Trend,
-    variants: initialData?.variants || [] as ProductVariant[],
+    variants: (initialData?.variants || [] as ProductVariant[]).map((v: any) => ({
+      packageId: v.packageId || '',
+      agentPrice: v.agentPrice || 0,
+      wholesalePrice: v.wholesalePrice || 0,
+      retailPrice: v.retailPrice || 0,
+      previousRetailPrice: v.previousRetailPrice || v.retailPrice || 0,
+      trend: v.trend || 'stable'
+    })),
   });
 
   const addVariant = () => {
     setFormData({
       ...formData,
-      variants: [...formData.variants, { packageId: '', agentPrice: 0, wholesalePrice: 0, retailPrice: 0 }]
+      variants: [...formData.variants, { packageId: '', agentPrice: 0, wholesalePrice: 0, retailPrice: 0, previousRetailPrice: 0, trend: 'stable' }]
     });
   };
 
@@ -1065,20 +1105,40 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
       return;
     }
 
+    const retailPrice = Number(formData.retailPrice);
+    const previousRetailPrice = Number(formData.previousRetailPrice);
+    
+    let trend: Trend = 'stable';
+    if (retailPrice > previousRetailPrice) trend = 'up';
+    else if (retailPrice < previousRetailPrice) trend = 'down';
+    else trend = 'stable';
+
     const data = {
       ...formData,
       agentPrice: Number(formData.agentPrice),
       wholesalePrice: Number(formData.wholesalePrice),
-      retailPrice: Number(formData.retailPrice),
-      previousRetailPrice: initialData?.retailPrice || formData.retailPrice,
+      retailPrice,
+      previousRetailPrice,
+      trend,
       lastUpdatedAt: serverTimestamp(),
       createdAt: initialData?.createdAt || serverTimestamp(),
-      variants: formData.variants.map((v: any) => ({
-        ...v,
-        agentPrice: Number(v.agentPrice),
-        wholesalePrice: Number(v.wholesalePrice),
-        retailPrice: Number(v.retailPrice),
-      })),
+      variants: formData.variants.map((v: any) => {
+        const variantRetailPrice = Number(v.retailPrice);
+        const variantPreviousRetailPrice = Number(v.previousRetailPrice || v.retailPrice);
+        
+        let variantTrend: Trend = 'stable';
+        if (variantRetailPrice > variantPreviousRetailPrice) variantTrend = 'up';
+        else if (variantRetailPrice < variantPreviousRetailPrice) variantTrend = 'down';
+
+        return {
+          ...v,
+          agentPrice: Number(v.agentPrice),
+          wholesalePrice: Number(v.wholesalePrice),
+          retailPrice: variantRetailPrice,
+          previousRetailPrice: variantPreviousRetailPrice,
+          trend: variantTrend,
+        };
+      }),
     };
 
     if (initialData) {
@@ -1210,14 +1270,44 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
                           <TrendingUp size={20} />
                         </div>
                         <div className="flex-1">
-                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1 leading-none">سعر التجزئة</label>
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1 leading-none">سعر المستهلك الحالي</label>
                           <input type="number" value={formData.retailPrice} onChange={(e:any) => setFormData({...formData, retailPrice: e.target.value})} required className="w-full bg-transparent font-black text-neutral-900 dark:text-white focus:outline-none text-lg" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 bg-neutral-50 dark:bg-neutral-800/30 p-2 rounded-2xl border border-dashed border-neutral-200 dark:border-white/5">
+                        <div className="w-12 h-12 bg-neutral-100 dark:bg-neutral-800 rounded-xl flex items-center justify-center text-neutral-400 shrink-0">
+                          <Minus size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1 leading-none">السعر السابق (للمؤشر)</label>
+                          <input type="number" value={formData.previousRetailPrice} onChange={(e:any) => setFormData({...formData, previousRetailPrice: e.target.value})} className="w-full bg-transparent font-black text-neutral-500 focus:outline-none text-lg" />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <Select label="توقعات اتجاه السعر" value={formData.trend} options={[{id: 'up', name: 'ارتفاع المتوقع'}, {id: 'down', name: 'انخفاض المتوقع'}, {id: 'stable', name: 'ثبات'}]} onChange={(e:any) => setFormData({...formData, trend: e.target.value as any})} />
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest leading-none px-2">اتجاه السعر (يتم ضبطه تلقائياً حسب الفارق)</label>
+                    <div className="flex gap-2">
+                      {[
+                        {id: 'up', name: 'مرتفع', icon: <TrendingUp size={14} />, color: 'text-red-500 bg-red-50 dark:bg-red-500/10 border-red-100'},
+                        {id: 'down', name: 'منخفض', icon: <TrendingDown size={14} />, color: 'text-green-500 bg-green-50 dark:bg-green-500/10 border-green-100'},
+                        {id: 'stable', name: 'مستقر', icon: <Minus size={14} />, color: 'text-neutral-500 bg-neutral-50 dark:bg-neutral-800 border-neutral-100'}
+                      ].map((t) => (
+                        <div 
+                          key={t.id}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border text-[11px] font-black transition-all",
+                            formData.trend === t.id ? t.color : "bg-white dark:bg-neutral-900 text-neutral-300 border-neutral-50 shadow-sm opacity-50"
+                          )}
+                        >
+                          {t.icon}
+                          {t.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </motion.div>
               )}
 
@@ -1254,24 +1344,28 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
                           <X size={14} />
                         </button>
                         <Select 
-                          label="نوع العبوة البديلة" 
+                          label="العبوة" 
                           value={v.packageId} 
                           options={packages} 
                           onChange={(e:any) => updateVariant(index, 'packageId', e.target.value)} 
                           required 
                         />
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="flex flex-col gap-1.5 flex-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="flex flex-col gap-1 flex-1">
+                             <label className="text-[9px] font-black text-neutral-400 px-3 uppercase tracking-widest">مستهلك جديد</label>
+                             <input type="number" value={v.retailPrice} onChange={(e:any) => updateVariant(index, 'retailPrice', e.target.value)} required className="w-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-3 text-[11px] font-black text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-center" />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                             <label className="text-[9px] font-black text-neutral-400 px-3 uppercase tracking-widest">مستهلك سابق</label>
+                             <input type="number" value={v.previousRetailPrice} onChange={(e:any) => updateVariant(index, 'previousRetailPrice', e.target.value)} required className="w-full bg-neutral-50 dark:bg-neutral-800/30 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-3 text-[11px] font-black text-neutral-400 dark:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/20 text-center" />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1 opacity-60">
                              <label className="text-[9px] font-black text-blue-500 px-3 uppercase tracking-widest">وكيل</label>
-                             <input type="number" value={v.agentPrice} onChange={(e:any) => updateVariant(index, 'agentPrice', e.target.value)} required className="w-full bg-blue-50/30 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/10 rounded-xl px-3 py-3 text-xs font-black text-blue-600 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-center" />
+                             <input type="number" value={v.agentPrice} onChange={(e:any) => updateVariant(index, 'agentPrice', e.target.value)} required className="w-full bg-blue-50/10 dark:bg-blue-500/5 border border-blue-100/50 dark:border-blue-500/10 rounded-xl px-3 py-3 text-[10px] font-black text-blue-600 dark:text-blue-400 focus:outline-none text-center" />
                           </div>
-                          <div className="flex flex-col gap-1.5 flex-1">
+                          <div className="flex flex-col gap-1 flex-1 opacity-60">
                              <label className="text-[9px] font-black text-indigo-500 px-3 uppercase tracking-widest">جملة</label>
-                             <input type="number" value={v.wholesalePrice} onChange={(e:any) => updateVariant(index, 'wholesalePrice', e.target.value)} required className="w-full bg-indigo-50/30 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10 rounded-xl px-3 py-3 text-xs font-black text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-center" />
-                          </div>
-                          <div className="flex flex-col gap-1.5 flex-1">
-                             <label className="text-[9px] font-black text-neutral-500 px-3 uppercase tracking-widest">تجزئة</label>
-                             <input type="number" value={v.retailPrice} onChange={(e:any) => updateVariant(index, 'retailPrice', e.target.value)} required className="w-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-white/5 rounded-xl px-3 py-3 text-xs font-black text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-500/20 text-center" />
+                             <input type="number" value={v.wholesalePrice} onChange={(e:any) => updateVariant(index, 'wholesalePrice', e.target.value)} required className="w-full bg-indigo-50/10 dark:bg-indigo-500/5 border border-indigo-100/50 dark:border-indigo-500/10 rounded-xl px-3 py-3 text-[10px] font-black text-indigo-600 dark:text-indigo-400 focus:outline-none text-center" />
                           </div>
                         </div>
                       </div>

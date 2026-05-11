@@ -61,11 +61,31 @@ export function ProductListItem({ product }: ProductListItemProps) {
       </div>
 
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <div className="flex items-center gap-2 bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 rounded-xl border border-neutral-100 dark:border-white/5">
-          <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-tighter">سعر المستهلك</span>
-          <span className="font-accent font-black text-base text-neutral-900 dark:text-white">
-            {formatCurrency(product.retailPrice)}
-          </span>
+        <div className="flex flex-col items-end">
+          <div className={cn(
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border transition-all shadow-sm",
+            product.previousRetailPrice && product.previousRetailPrice !== product.retailPrice
+              ? (product.retailPrice > product.previousRetailPrice ? "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/30" : "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30")
+              : "bg-primary-500/[0.03] dark:bg-primary-500/[0.07] border-primary-500/20 dark:border-primary-500/30"
+          )}>
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-black opacity-40 uppercase tracking-widest leading-none mb-0.5">مستهلك</span>
+              <span className={cn(
+                "font-accent font-black text-base transition-colors tracking-tighter leading-none",
+                product.previousRetailPrice && product.previousRetailPrice !== product.retailPrice
+                  ? (product.retailPrice > product.previousRetailPrice ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400")
+                  : "text-neutral-900 dark:text-white"
+              )}>
+                {formatCurrency(product.retailPrice)}
+              </span>
+            </div>
+          </div>
+          {product.previousRetailPrice && product.previousRetailPrice !== product.retailPrice && (
+            <div className="flex items-center gap-1.5 bg-neutral-900/5 dark:bg-white/5 px-2.5 py-1 rounded-lg mt-1.5 border border-dashed border-neutral-200 dark:border-white/10">
+              <span className="text-[8px] font-black text-neutral-400 uppercase">السابق:</span>
+              <span className="text-[12px] font-black text-neutral-500 line-through decoration-neutral-400/30">{formatCurrency(product.previousRetailPrice)}</span>
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

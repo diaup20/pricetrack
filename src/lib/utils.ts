@@ -6,11 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-YE', {
-    style: 'currency',
-    currency: 'YER',
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return `${amount.toLocaleString('en-YE')} ريال يمني`;
 }
 
 export function formatSAR(amount: number) {
