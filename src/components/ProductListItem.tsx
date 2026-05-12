@@ -71,7 +71,7 @@ export function ProductListItem({ product }: ProductListItemProps) {
             <div className="flex flex-col items-end">
               <span className="text-[8px] font-black opacity-40 uppercase tracking-widest leading-none mb-0.5">مستهلك</span>
               <span className={cn(
-                "font-accent font-black text-base transition-colors tracking-tighter leading-none",
+                "font-accent font-black text-sm transition-colors tracking-tighter leading-none",
                 product.previousRetailPrice && product.previousRetailPrice !== product.retailPrice
                   ? (product.retailPrice > product.previousRetailPrice ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400")
                   : "text-neutral-900 dark:text-white"

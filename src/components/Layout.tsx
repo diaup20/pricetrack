@@ -9,7 +9,6 @@ import { motion } from 'motion/react';
 export function Navigation() {
   const location = useLocation();
   const { isAdmin } = useAuth();
-  const { isDark } = useTheme();
 
   const navItems = [
     { icon: Home, label: 'الرئيسية', path: '/' },
@@ -19,7 +18,7 @@ export function Navigation() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-2xl border-t border-neutral-100/50 dark:border-white/5 px-8 py-4 flex justify-between items-center z-50 safe-area-bottom transition-colors">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-2xl border-t border-neutral-100/50 dark:border-white/5 px-8 pt-3 pb-6 flex justify-between items-center z-50 safe-area-bottom transition-colors">
       {navItems.map((item) => {
         const isActive = location.pathname === item.path;
         return (
@@ -36,7 +35,7 @@ export function Navigation() {
             {isActive && (
               <motion.span 
                 layoutId="nav-active"
-                className="absolute -top-4 w-8 h-1 bg-primary-500 rounded-full" 
+                className="absolute -top-3 w-8 h-1 bg-primary-500 rounded-full shadow-[0_0_8px_rgba(14,165,233,0.5)]" 
               />
             )}
           </Link>
@@ -78,3 +77,4 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
