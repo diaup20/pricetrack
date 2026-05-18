@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   AlertTriangle, 
   Clock, 
@@ -11,7 +12,8 @@ import {
   Filter,
   FileText,
   MapPin,
-  Calendar
+  Calendar,
+  LogIn
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, where, documentId, onSnapshot, orderBy } from 'firebase/firestore';
@@ -21,29 +23,25 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ReportForm } from '../components/ReportForm';
+import { Link } from 'react-router-dom';
 
 export function MyReports() {
+  const { user } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ReportStatus | 'all'>('all');
   const [isReportOpen, setIsReportOpen] = useState(false);
 
   useEffect(() => {
-    const myReportIds = JSON.parse(localStorage.getItem('my_reports') || '[]');
-    
-    if (myReportIds.length === 0) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
-    // Firestore has a limit of 10 IDs in a 'where in' query
-    // For a real app, we'd chunk this or use a different relationship
-    // Since this is for a prototype/AI Studio, we'll take the latest 10
-    const latestIds = myReportIds.slice(-10);
-
     const q = query(
       collection(db, 'reports'),
-      where(documentId(), 'in', latestIds)
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -52,13 +50,6 @@ export function MyReports() {
         ...doc.data()
       } as Report));
       
-      // Sort by date manually as combining 'in' with 'orderBy' can be tricky with composite indexes
-      reportsData.sort((a, b) => {
-        const dateA = a.createdAt?.seconds || 0;
-        const dateB = b.createdAt?.seconds || 0;
-        return dateB - dateA;
-      });
-
       setReports(reportsData);
       setLoading(false);
     }, (error) => {
@@ -67,7 +58,32 @@ export function MyReports() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
+
+  if (!user && !loading) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 text-center gap-8 px-6">
+          <div className="w-24 h-24 bg-neutral-100 dark:bg-neutral-900 rounded-[40px] flex items-center justify-center text-neutral-300 dark:text-neutral-700 shadow-inner">
+            <FileText size={48} />
+          </div>
+          <div className="space-y-3">
+            <h2 className="text-2xl font-black text-neutral-900 dark:text-white tracking-tighter">بلاغاتي</h2>
+            <p className="text-xs font-bold text-neutral-400 dark:text-neutral-500 max-w-[280px] leading-relaxed mx-auto">
+              لمشاهدة بلاغاتك السابقة وتتبع حالتها، يرجى تسجيل الدخول إلى حسابك أولاً.
+            </p>
+          </div>
+          <Link 
+            to="/auth"
+            className="w-full max-w-[240px] bg-primary-600 text-white py-5 rounded-[24px] font-black text-[13px] uppercase tracking-widest shadow-xl shadow-primary-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+          >
+            <LogIn size={20} />
+            تسجيل الدخول
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
 
   const filteredReports = reports.filter(r => filter === 'all' || r.status === filter);
 

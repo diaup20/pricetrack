@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Camera, MapPin, AlertTriangle, Phone, User, Calendar, Store, Tag, ChevronDown } from 'lucide-react';
+import { X, Send, Camera, MapPin, AlertTriangle, Phone, User, Calendar, Store, Tag, ChevronDown, LogIn } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ReportType } from '../types';
 import { cn } from '../lib/utils';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { reportTypes, governorates, districts } = useData();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -151,13 +155,9 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         district: districtName,
         currentPrice: Number(formData.currentPrice),
         status: 'new',
+        userId: user.uid, // user is guaranteed to exist here due to check above
         createdAt: serverTimestamp(),
       });
-
-      // Save to localStorage for "My Reports" page
-      const myReports = JSON.parse(localStorage.getItem('my_reports') || '[]');
-      myReports.push(reportRef.id);
-      localStorage.setItem('my_reports', JSON.stringify(myReports));
 
       alert('تم إرسال البلاغ بنجاح. شكراً لتعاونكم.');
       onClose();
@@ -237,7 +237,30 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             </div>
 
             {/* Form Content */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
+            {!user ? (
+              <div className="flex-1 p-8 flex flex-col items-center justify-center text-center gap-6">
+                 <div className="w-20 h-20 bg-primary-100 dark:bg-primary-950/30 text-primary-600 rounded-[32px] flex items-center justify-center shadow-inner">
+                    <User size={32} />
+                 </div>
+                 <div className="space-y-2">
+                    <h3 className="text-xl font-black text-neutral-900 dark:text-white tracking-tighter">تسجيل الدخول مطلوب</h3>
+                    <p className="text-xs font-bold text-neutral-400 dark:text-neutral-500 max-w-[280px] leading-relaxed mx-auto">
+                      من أجل الحفاظ على جودة البلاغات، يجب عليك تسجيل الدخول أولاً لتقديم بلاغ جديد.
+                    </p>
+                 </div>
+                 <button 
+                  onClick={() => {
+                    onClose();
+                    navigate('/auth');
+                  }}
+                  className="w-full bg-primary-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg shadow-primary-500/20"
+                 >
+                    <LogIn size={18} />
+                    تسجيل الدخول الآن
+                 </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
               {step === 1 && (
                 <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="space-y-4">
                   <div className="space-y-2">
@@ -451,9 +474,11 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
               </motion.div>
             )}
           </form>
+          )}
 
             {/* Footer Footer */}
-            <div className="p-6 border-t border-neutral-100 dark:border-white/5 bg-neutral-50 dark:bg-neutral-800/30 flex gap-4">
+            {user && (
+              <div className="p-6 border-t border-neutral-100 dark:border-white/5 bg-neutral-50 dark:bg-neutral-800/30 flex gap-4">
               {step > 1 && (
                 <button
                   type="button"
@@ -489,6 +514,7 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 </button>
               )}
             </div>
+            )}
           </motion.div>
         </div>
       )}

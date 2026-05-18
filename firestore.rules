@@ -79,10 +79,26 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    function isValidReport(data) {
+      return data.reporterName is string && data.reporterName.size() <= 100 &&
+             data.reporterPhone is string && data.reporterPhone.size() <= 20 &&
+             data.itemName is string && data.itemName.size() <= 200 &&
+             data.currentPrice is number &&
+             data.governorate is string &&
+             data.district is string &&
+             data.status in ['new', 'review', 'resolved', 'rejected'] &&
+             (data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 65536));
+    }
+
     // Reports
     match /reports/{reportId} {
-      allow create: if true;
-      allow read, update, delete: if isVerifiedAdmin();
+      allow create: if isSignedIn() && 
+                      isValidReport(incoming()) && 
+                      incoming().userId == request.auth.uid;
+      
+      allow read: if isVerifiedAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      allow update, delete: if isVerifiedAdmin();
     }
 
     match /report_types/{typeId} {
