@@ -1890,6 +1890,55 @@ function ReportManager() {
 
   const filtered = reports.filter(r => filterStatus === 'all' || r.status === filterStatus);
 
+  const handleExportReports = () => {
+    if (!reports || reports.length === 0) {
+      alert('لا توجد بلاغات لتصديرها');
+      return;
+    }
+
+    try {
+      const exportData = reports.map(r => ({
+        'رقم البلاغ': `#${r.id.substring(0, 6)}`,
+        'الاسم الكامل': r.reporterName || 'غير متوفر',
+        'رقم الهاتف': r.reporterPhone || 'غير متوفر',
+        'تاريخ البلاغ': r.createdAt ? new Date(r.createdAt.seconds * 1000).toLocaleString('ar-YE') : 'غير متوفر',
+        'نوع البلاغ': r.reportType || 'غير متوفر',
+        'اسم السلعة': r.itemName || 'غير متوفر',
+        'اسم المتجر': r.storeName || 'غير متوفر',
+        'السعر المبلغ عنه': r.currentPrice || '0',
+        'المحافظة': r.governorate || 'غير متوفر',
+        'المديرية': r.district || 'غير متوفر',
+        'الحالة': getStatusInfo(r.status).label,
+        'الوصف/التوضيح': r.description || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "البلاغات");
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 }, // id
+        { wch: 25 }, // name
+        { wch: 15 }, // phone
+        { wch: 20 }, // date
+        { wch: 20 }, // type
+        { wch: 30 }, // item
+        { wch: 25 }, // store
+        { wch: 15 }, // price
+        { wch: 15 }, // gov
+        { wch: 15 }, // district
+        { wch: 15 }, // status
+        { wch: 40 }, // description
+      ];
+
+      XLSX.writeFile(wb, `بلاغات_الأسعار_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Export Error:', error);
+      alert('حدث خطأ أثناء تصدير البيانات');
+    }
+  };
+
   const updateStatus = async (id: string, status: ReportStatus) => {
     await updateDoc(doc(db, 'reports', id), { status });
   };
@@ -1917,21 +1966,30 @@ function ReportManager() {
           إدارة البلاغات
           <span className="bg-neutral-50 dark:bg-neutral-800 text-neutral-400 text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-wider">{reports.length}</span>
         </h3>
-        <div className="flex gap-2">
-          {(['all', 'new', 'review', 'resolved', 'rejected'] as const).map(s => (
-            <button 
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-[10px] font-bold transition-all",
-                filterStatus === s 
-                  ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" 
-                  : "bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100"
-              )}
-            >
-              {s === 'all' ? 'الكل' : getStatusInfo(s as ReportStatus).label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <button 
+            onClick={handleExportReports}
+            className="bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-4 py-2 rounded-xl text-[10px] font-bold flex items-center gap-2 hover:bg-green-100 transition-all border border-green-100 dark:border-green-500/20 shadow-sm"
+          >
+            <Download size={14} />
+            تصدير Excel
+          </button>
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
+            {(['all', 'new', 'review', 'resolved', 'rejected'] as const).map(s => (
+              <button 
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap",
+                  filterStatus === s 
+                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm" 
+                    : "bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                )}
+              >
+                {s === 'all' ? 'الكل' : getStatusInfo(s as ReportStatus).label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

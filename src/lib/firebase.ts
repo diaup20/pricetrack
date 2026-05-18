@@ -16,11 +16,10 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  // @ts-ignore - This is needed in some specific environments to ensure stable connection
-  useFetchStreams: false,
 }, firebaseConfig.firestoreDatabaseId);
 
 export const auth = getAuth(app);
+auth.useDeviceLanguage(); // Set language to Arabic by default if possible
 export const googleProvider = new GoogleAuthProvider();
 
 // Test connection

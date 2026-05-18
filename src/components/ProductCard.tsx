@@ -15,8 +15,8 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { sections, categories, brands, units, packages } = useData();
-  const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(-1); // -1 means base product
+  const { sections, categories, brands, units, packages, exchangeRates } = useData();
+  const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(-1); 
   const [showReportForm, setShowReportForm] = useState(false);
   
   const category = categories.find((c: any) => c.id === product.categoryId);
@@ -93,8 +93,6 @@ export function ProductCard({ product }: ProductCardProps) {
             </div>
           </div>
         </div>
-
-      {/* Removed old redundant badges */}
       </div>
 
       {/* Sizes Section - Now with buttons */}

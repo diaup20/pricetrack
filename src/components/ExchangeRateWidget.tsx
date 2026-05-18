@@ -45,7 +45,17 @@ export function ExchangeRateWidget({ rates }: ExchangeRateWidgetProps) {
                      rate.fromCurrency.includes('يمني') ? '🇾🇪' : '💱'}
                   </div>
                   <div className="flex flex-col">
-                    <h4 className="text-[13px] font-black text-white leading-tight">{rate.fromCurrency}</h4>
+                    <h4 className="text-[13px] font-black text-white leading-tight">
+                      {rate.fromCurrency} 
+                      {rate.region && (
+                        <span className={cn(
+                          "mr-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest",
+                          rate.region === 'sanaa' ? "bg-amber-500/20 text-amber-500" : "bg-blue-500/20 text-blue-500"
+                        )}>
+                          {rate.region === 'sanaa' ? 'صنعاء' : 'عدن'}
+                        </span>
+                      )}
+                    </h4>
                     <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">مقابل {rate.toCurrency}</span>
                   </div>
                 </div>

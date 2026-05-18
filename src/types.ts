@@ -67,6 +67,7 @@ export interface ExchangeRate {
   previousRate: number;
   trend: Trend;
   lastUpdatedAt: any;
+  region?: 'sanaa' | 'aden' | 'global';
 }
 
 export type CategoryStats = {
