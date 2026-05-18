@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, ShieldCheck, User, Package, Moon, Sun } from 'lucide-react';
+import { Home, Search, ShieldCheck, User, Package, Moon, Sun, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,6 +12,8 @@ export function Navigation() {
 
   const navItems = [
     { icon: Home, label: 'الرئيسية', path: '/' },
+    { icon: LayoutGrid, label: 'الأقسام', path: '/categories' },
+    { icon: AlertTriangle, label: 'بلاغاتي', path: '/reports' },
     { icon: Search, label: 'البحث', path: '/search' },
     ...(isAdmin ? [{ icon: ShieldCheck, label: 'الإدارة', path: '/admin' }] : []),
     { icon: User, label: 'حسابي', path: '/profile' },

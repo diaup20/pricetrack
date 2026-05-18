@@ -1,12 +1,24 @@
 {
   "entities": {
+    "Section": {
+      "title": "Main Section",
+      "description": "Main sections (e.g., Foodstuff, Meat & Poultry)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["name"]
+    },
     "Category": {
       "title": "Category",
       "description": "Product category (e.g., Wheat, Rice, Sugar)",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "icon": { "type": "string" }
+        "icon": { "type": "string" },
+        "sectionId": { "type": "string" }
       },
       "required": ["name"]
     },
@@ -97,6 +109,7 @@
     }
   },
   "firestore": {
+    "/sections/{sectionId}": { "schema": "Section", "description": "Main sections for grouping categories" },
     "/categories/{categoryId}": { "schema": "Category", "description": "Categories for grouping products" },
     "/units/{unitId}": { "schema": "Unit", "description": "Measurement units" },
     "/packages/{packageId}": { "schema": "Package", "description": "Packaging types" },

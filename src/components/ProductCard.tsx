@@ -4,7 +4,8 @@ import { useData } from '../contexts/DataContext';
 import { Product, Trend, ProductVariant } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { TrendIndicator } from './TrendIndicator';
-import { Calendar, Tag, Package as PackageIcon, ChevronDown } from 'lucide-react';
+import { Calendar, Tag, Package as PackageIcon, ChevronDown, AlertTriangle } from 'lucide-react';
+import { ReportForm } from './ReportForm';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -14,10 +15,12 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { categories, brands, units, packages } = useData();
+  const { sections, categories, brands, units, packages } = useData();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(-1); // -1 means base product
+  const [showReportForm, setShowReportForm] = useState(false);
   
   const category = categories.find((c: any) => c.id === product.categoryId);
+  const section = sections.find((s: any) => s.id === category?.sectionId);
   const brand = brands.find((b: any) => b.id === product.brandId);
   const unit = units.find((u: any) => u.id === product.unitId);
   
@@ -46,69 +49,88 @@ export function ProductCard({ product }: ProductCardProps) {
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-neutral-900 rounded-xl p-3 shadow-sm border border-neutral-100 dark:border-white/5 flex flex-col gap-2 transition-colors"
+      className="bg-white dark:bg-neutral-900 rounded-xl p-3 shadow-sm border border-neutral-100 dark:border-white/5 flex flex-col gap-2 transition-colors group"
     >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-start justify-between gap-1.5">
           <div className="flex-1 min-w-0">
-            <h3 className="font-display font-bold text-sm leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
-            <p className="text-[9px] text-neutral-400 dark:text-neutral-500 font-medium line-clamp-1">{product.description || 'لا يوجد وصف'}</p>
+            <div className="flex items-center gap-1 mb-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+              <span className="text-xs">{section?.icon || '📦'}</span>
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mx-1">{section?.name || 'عام'}</span>
+              <span className="text-neutral-300 dark:text-neutral-700 mx-1 text-[10px]">{'<'}</span>
+              <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">{category?.name}</span>
+            </div>
+            <h3 className="font-display font-black text-base leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
+            
+            {brand && (
+              <div className="flex flex-col gap-2 mt-1.5">
+                <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+                  <Tag size={10} className="text-primary-500" />
+                  <span className="text-[10px] font-bold">العلامة التجارية:</span>
+                  <span className="text-[10px] font-black text-neutral-900 dark:text-white">{brand.name}</span>
+                </div>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowReportForm(true)}
+                  className="w-fit flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 dark:bg-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-600 transition-all active:scale-95 group/btn"
+                >
+                  <AlertTriangle size={14} className="group-hover/btn:animate-bounce" />
+                  <span className="text-[11px] font-black uppercase tracking-tight">إبلاغ عن سعر</span>
+                </motion.button>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-1 bg-neutral-50 dark:bg-neutral-800/50 px-1.5 py-0.5 rounded-md border border-neutral-100 dark:border-white/5">
-            <TrendIndicator trend={currentPrices.trend} className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className={cn(
-              "text-[8px] font-black uppercase tracking-tighter",
-              currentPrices.trend === 'up' ? "text-red-500" : currentPrices.trend === 'down' ? "text-green-500" : "text-neutral-400"
-            )}>
-              {currentPrices.trend === 'up' ? 'مرتفع' : currentPrices.trend === 'down' ? 'منخفض' : 'مستقر'}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1 mt-0.5">
-          {category && (
-            <span className="text-[8px] bg-sky-50 dark:bg-sky-500/10 px-1.5 py-0.5 rounded text-sky-600 dark:text-sky-400 font-bold border border-sky-100/50 dark:border-sky-500/20">
-              {category.name}
-            </span>
-          )}
-          {brand && (
-            <span className="text-[8px] bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-100/50 dark:border-indigo-500/20">
-              {brand.name}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {product.variants && product.variants.length > 0 && (
-        <div className="flex flex-col gap-1 p-1.5 rounded-lg bg-neutral-50/50 dark:bg-white/[0.02] border border-neutral-100 dark:border-white/5">
-          <div className="relative group">
-            <select
-              className="w-full bg-white dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 rounded px-2 py-1 text-[11px] font-black appearance-none focus:outline-none pl-6 text-neutral-900 dark:text-white cursor-pointer"
-              value={selectedVariantIndex}
-              onChange={(e) => setSelectedVariantIndex(Number(e.target.value))}
-            >
-              <option value={-1}>
-                {packages.find((p: any) => p.id === product.packageId)?.name || 'الأساسي'}
-              </option>
-              {product.variants.map((v, idx) => (
-                <option key={idx} value={idx}>
-                  {packages.find((p: any) => p.id === v.packageId)?.name}
-                </option>
-              ))}
-            </select>
-            <div className="absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-              <ChevronDown size={10} strokeWidth={3} />
+          <div className="flex flex-col items-end gap-1">
+             <div className="flex items-center gap-1 bg-neutral-50 dark:bg-neutral-800/50 px-1.5 py-0.5 rounded-md border border-neutral-100 dark:border-white/5">
+              <TrendIndicator trend={currentPrices.trend} className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className={cn(
+                "text-[8px] font-black uppercase tracking-tighter",
+                currentPrices.trend === 'up' ? "text-red-500" : currentPrices.trend === 'down' ? "text-green-500" : "text-neutral-400"
+              )}>
+                {currentPrices.trend === 'up' ? 'مرتفع' : currentPrices.trend === 'down' ? 'منخفض' : 'مستقر'}
+              </span>
             </div>
           </div>
         </div>
-      )}
 
-      {!(product.variants && product.variants.length > 0) && (pack || unit) && (
-        <div className="bg-orange-50/30 dark:bg-orange-500/5 px-2 py-0.5 rounded border border-orange-100/30 dark:border-orange-500/10 flex items-center gap-1">
-          <PackageIcon size={8} className="text-orange-400" />
-          <span className="text-[8px] text-orange-600 dark:text-orange-400 font-bold">{unit?.name} {pack?.name}</span>
+      {/* Removed old redundant badges */}
+      </div>
+
+      {/* Sizes Section - Now with buttons */}
+      <div className="flex flex-col gap-2 mt-1">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">الأحجام المتوفرة</span>
+          <div className="h-px flex-1 mx-3 bg-neutral-100 dark:bg-white/5" />
         </div>
-      )}
+        <div className="flex flex-wrap gap-2 px-0.5">
+          <button 
+            onClick={() => setSelectedVariantIndex(-1)}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border",
+              selectedVariantIndex === -1 
+                ? "bg-primary-600 border-primary-500 text-white shadow-lg shadow-primary-500/20 scale-105" 
+                : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-100 dark:border-white/5 hover:border-primary-200 dark:hover:border-primary-900/30"
+            )}
+          >
+            {packages.find((p: any) => p.id === product.packageId)?.name || 'الأساسي'}
+          </button>
+          {product.variants?.map((v, idx) => (
+            <button 
+              key={idx}
+              onClick={() => setSelectedVariantIndex(idx)}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border",
+                selectedVariantIndex === idx 
+                  ? "bg-primary-600 border-primary-500 text-white shadow-lg shadow-primary-500/20 scale-105" 
+                  : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-100 dark:border-white/5 hover:border-primary-200 dark:hover:border-primary-900/30"
+              )}
+            >
+              {packages.find((p: any) => p.id === v.packageId)?.name}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1 mt-1 p-2 rounded-lg bg-primary-500/[0.04] dark:bg-white/[0.04] border border-primary-500/10 dark:border-white/10">
         <div className="flex items-center justify-between">
@@ -147,6 +169,11 @@ export function ProductCard({ product }: ProductCardProps) {
           </span>
         </div>
       </div>
+
+      <ReportForm 
+        isOpen={showReportForm} 
+        onClose={() => setShowReportForm(false)} 
+      />
     </motion.div>
   );
 }

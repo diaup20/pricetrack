@@ -26,74 +26,60 @@ export function CategoryGrid({ categories, products }: CategoryGridProps) {
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {categories.map((cat, index) => {
         const data = getCategoryData(cat.id);
-        const timeAgo = data.latestUpdate ? data.latestUpdate.toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' }) : null;
 
         return (
-          <Link key={cat.id} to={`/category/${cat.id}`} className="block h-full">
+          <Link key={cat.id} to={`/category/${cat.id}`} className="group">
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              whileHover={{ y: -6, scale: 1.01 }}
+              transition={{ 
+                delay: index * 0.05, 
+                duration: 0.5,
+                ease: [0.19, 1, 0.22, 1]
+              }}
+              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="relative h-full flex flex-col p-5 md:p-6 bg-white dark:bg-neutral-900 rounded-[32px] md:rounded-[40px] border border-neutral-100 dark:border-white/5 shadow-sm hover:shadow-2xl dark:hover:shadow-none transition-all duration-500 overflow-hidden group"
+              className="relative p-5 bg-white dark:bg-neutral-900 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm hover:shadow-2xl hover:border-primary-500/30 transition-all duration-500 overflow-hidden flex items-center justify-between gap-4"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/5 rounded-full -mr-12 -mt-12 transition-transform duration-700 group-hover:scale-150" />
+              {/* Highlight background on hover */}
+              <div className="absolute inset-0 bg-primary-500/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               
-              <div className="relative z-10 flex flex-col h-full gap-4">
-                <div className="flex items-start justify-between">
-                  <div className="w-14 h-14 md:w-16 md:h-16 flex items-center justify-center bg-neutral-50 dark:bg-neutral-800 rounded-2xl md:rounded-3xl text-2xl md:text-3xl shadow-inner group-hover:bg-primary-500 transition-all duration-500 group-hover:text-white">
-                    <span className="group-hover:filter group-hover:brightness-0 group-hover:invert">
-                      {cat.icon || '📦'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-col items-end gap-1.5">
-                    {data.up > 0 && (
-                      <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-100/50 dark:border-red-500/10">
-                        <ArrowUp size={10} className="text-red-500" />
-                        <span className="text-[10px] font-black text-red-600 dark:text-red-400">{data.up}</span>
-                      </div>
-                    )}
-                    {data.down > 0 && (
-                      <div className="flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-lg border border-green-100/50 dark:border-green-500/10">
-                        <ArrowDown size={10} className="text-green-500" />
-                        <span className="text-[10px] font-black text-green-600 dark:text-green-400">{data.down}</span>
-                      </div>
-                    )}
-                  </div>
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-2xl group-hover:bg-primary-500 group-hover:text-white transition-all duration-500 shadow-inner">
+                  {cat.icon || '🛍️'}
                 </div>
-                
-                <div className="mt-auto flex flex-col gap-1">
-                  <h3 className="font-display font-black text-neutral-900 dark:text-white text-base md:text-lg tracking-tight group-hover:text-primary-500 transition-colors">
+                <div>
+                  <h3 className="font-display font-black text-neutral-800 dark:text-neutral-100 text-base leading-tight transition-colors group-hover:text-primary-600">
                     {cat.name}
                   </h3>
-                  
-                  <div className="flex flex-col gap-2 mt-1">
-                    <div className="flex items-center gap-2">
-                       <span className="text-[10px] md:text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest leading-none">
-                        {data.count} أصناف
-                      </span>
-                      {timeAgo && (
-                        <>
-                          <span className="h-1 w-1 rounded-full bg-neutral-200 dark:bg-neutral-700" />
-                          <div className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
-                            <span className="text-[9px] md:text-[10px] font-black text-primary-500 uppercase tracking-wider">{timeAgo}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
+                      {data.count} أصناف متوفرة
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="absolute bottom-4 left-6 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
-                <div className="bg-primary-500 text-white p-1.5 rounded-full shadow-lg">
-                  <ArrowLeft size={14} />
+              <div className="relative z-10 flex flex-col items-end gap-1.5">
+                {(data.up > 0 || data.down > 0) && (
+                  <div className="flex items-center -space-x-1 rtl:space-x-reverse">
+                    {data.up > 0 && (
+                      <div className="w-6 h-6 flex items-center justify-center bg-red-50 dark:bg-red-500/10 rounded-full border-2 border-white dark:border-neutral-900 shadow-sm">
+                        <ArrowUp size={10} className="text-red-500" />
+                      </div>
+                    )}
+                    {data.down > 0 && (
+                      <div className="w-6 h-6 flex items-center justify-center bg-green-50 dark:bg-green-500/10 rounded-full border-2 border-white dark:border-neutral-900 shadow-sm">
+                        <ArrowDown size={10} className="text-green-500" />
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="p-2 rounded-full bg-neutral-50 dark:bg-neutral-800 group-hover:bg-primary-500/10 transition-colors">
+                  <ArrowLeft size={14} className="text-neutral-300 group-hover:text-primary-500 group-hover:translate-x-1 transition-all ltr:rotate-180" />
                 </div>
               </div>
             </motion.div>

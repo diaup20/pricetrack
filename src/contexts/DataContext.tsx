@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Category, Product, ExchangeRate, Unit, Package, Brand, ReportMeta, Governorate, District } from '../types';
+import { Category, Product, ExchangeRate, Unit, Package, Brand, ReportMeta, Governorate, District, Section } from '../types';
 import { OperationType, handleFirestoreError } from '../lib/utils';
 
 interface DataContextType {
+  sections: Section[];
   categories: Category[];
   products: Product[];
   exchangeRates: ExchangeRate[];
@@ -18,6 +19,7 @@ interface DataContextType {
 }
 
 const DataContext = createContext<DataContextType>({
+  sections: [],
   categories: [],
   products: [],
   exchangeRates: [],
@@ -31,6 +33,7 @@ const DataContext = createContext<DataContextType>({
 });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const [sections, setSections] = useState<Section[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
@@ -43,6 +46,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const unsubSections = onSnapshot(collection(db, 'sections'), 
+      (s) => setSections(s.docs.map(d => ({ id: d.id, ...d.data() } as Section)).sort((a,b) => (a.order || 0) - (b.order || 0))),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'sections')
+    );
+
     const unsubCategories = onSnapshot(collection(db, 'categories'), 
       (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() } as Category))),
       (e) => handleFirestoreError(e, OperationType.LIST, 'categories')
@@ -91,6 +99,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
 
     return () => {
+      unsubSections();
       unsubCategories();
       unsubProducts();
       unsubRates();
@@ -104,7 +113,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <DataContext.Provider value={{ categories, products, exchangeRates, units, packages, brands, reportTypes, governorates, districts, loading }}>
+    <DataContext.Provider value={{ sections, categories, products, exchangeRates, units, packages, brands, reportTypes, governorates, districts, loading }}>
       {children}
     </DataContext.Provider>
   );

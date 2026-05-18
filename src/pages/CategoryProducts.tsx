@@ -11,38 +11,52 @@ import { cn } from '../lib/utils';
 export function CategoryProducts() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { categories, products } = useData();
+  const { sections, categories, products } = useData();
 
   const category = categories.find(c => c.id === id);
+  const section = sections.find(s => s.id === category?.sectionId);
   const categoryProducts = products.filter(p => p.categoryId === id);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <header className="flex items-center justify-between py-2">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate(-1)}
-              className="bg-white dark:bg-neutral-900 p-2.5 rounded-2xl shadow-sm border border-neutral-100/50 dark:border-white/5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-            >
-              <ArrowRight size={22} />
-            </button>
-            <div>
-              <h2 className="text-2xl font-display font-black text-neutral-900 dark:text-white transition-colors">{category?.name || 'القسم'}</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="w-1 h-1 rounded-full bg-primary-500"></span>
-                <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest leading-none transition-colors">{categoryProducts.length.toLocaleString('en-US')} منتج متوفر</p>
+        <header className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => navigate(-1)}
+                className="bg-white dark:bg-neutral-900 p-2.5 rounded-2xl shadow-sm border border-neutral-100/50 dark:border-white/5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all hover:scale-105 active:scale-95"
+              >
+                <ArrowRight size={22} />
+              </button>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xl">{section?.icon || '📦'}</span>
+                  <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest">{section?.name || 'تصنيف عام'}</span>
+                </div>
+                <h2 className="text-2xl font-display font-black text-neutral-900 dark:text-white leading-tight">
+                  {category?.name || 'القسم'}
+                </h2>
               </div>
             </div>
+            
+            <div className="flex items-center gap-2">
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                className="bg-white dark:bg-neutral-900 p-2.5 rounded-2xl shadow-sm border border-neutral-100/50 dark:border-white/5 text-neutral-400 dark:text-neutral-300 hover:text-primary-500 transition-colors"
+                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              >
+                {viewMode === 'grid' ? <List size={22} /> : <LayoutGrid size={22} />}
+              </motion.button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <motion.button 
-              whileTap={{ scale: 0.95 }}
-              className="bg-white dark:bg-neutral-900 p-2.5 rounded-2xl shadow-sm border border-neutral-100/50 dark:border-white/5 text-neutral-400 dark:text-neutral-300 hover:text-primary-500 transition-colors"
-            >
-              <Filter size={22} />
-            </motion.button>
+
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+                <p className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{categoryProducts.length.toLocaleString('en-US')} منتج متوفر حالياً</p>
+              </div>
           </div>
         </header>
 

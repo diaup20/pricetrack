@@ -16,6 +16,8 @@ import {
 } from 'firebase/firestore';
 import { OperationType, handleFirestoreError } from '../lib/utils';
 import { 
+  LogOut,
+  LayoutGrid,
   Plus, 
   Edit2, 
   Trash2, 
@@ -53,7 +55,7 @@ import * as XLSX from 'xlsx';
 
 export function Admin() {
   const { user, isAdmin, loading } = useAuth();
-  const { categories, brands, units, packages, products, exchangeRates, reportTypes, governorates, districts } = useData();
+  const { sections, categories, brands, units, packages, products, exchangeRates, reportTypes, governorates, districts } = useData();
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'rates' | 'meta' | 'users' | 'reports'>('overview');
 
   const navigation = [
@@ -242,6 +244,7 @@ export function Admin() {
           )}
           {activeTab === 'meta' && (
             <MetaManager 
+              sections={sections}
               categories={categories} 
               brands={brands} 
               units={units} 
@@ -1517,16 +1520,18 @@ function ExchangeRateManager({ rates }: any) {
   );
 }
 
-function MetaManager({ categories, brands, units, packages, reportTypes, governorates, districts }: any) {
-  const [activeMeta, setActiveMeta] = useState<'categories' | 'brands' | 'units' | 'packages' | 'report_types' | 'governorates' | 'districts'>('categories');
+function MetaManager({ sections, categories, brands, units, packages, reportTypes, governorates, districts }: any) {
+  const [activeMeta, setActiveMeta] = useState<'sections' | 'categories' | 'brands' | 'units' | 'packages' | 'report_types' | 'governorates' | 'districts'>('sections');
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [inputValue, setInputValue] = useState('');
   const [iconValue, setIconValue] = useState('📦');
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
 
   const metaSections = [
-    { id: 'categories', label: 'الأقسام الرئيسية', icon: <Tags size={18} />, color: 'text-purple-500', bg: 'bg-purple-50', desc: 'إدارة تصنيفات السلع والمنتجات' },
+    { id: 'sections', label: 'الأقسام الكبرى', icon: <LayoutGrid size={18} />, color: 'text-indigo-500', bg: 'bg-indigo-50', desc: 'إدارة الأقسام الرئيسية (مواد غذائية، لحوم، إلخ)' },
+    { id: 'categories', label: 'الأصناف الرئيسية', icon: <Tags size={18} />, color: 'text-purple-500', bg: 'bg-purple-50', desc: 'إدارة تصنيفات السلع والمنتجات تحت الأقسام' },
     { id: 'brands', label: 'العلامات التجارية', icon: <ShieldCheck size={18} />, color: 'text-blue-500', bg: 'bg-blue-50', desc: 'إدارة الشركات والماركات التجارية' },
     { id: 'units', label: 'وحدات القياس', icon: <Ruler size={18} />, color: 'text-orange-500', bg: 'bg-orange-50', desc: 'إدارة وحدات الكيل، الوزن، والسعة' },
     { id: 'packages', label: 'أنواع العبوات', icon: <Box size={18} />, color: 'text-green-500', bg: 'bg-green-50', desc: 'إدارة أشكال وأحجام التغليف' },
@@ -1535,7 +1540,7 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
     { id: 'districts', label: 'المديريات', icon: <MapPin size={18} />, color: 'text-violet-500', bg: 'bg-violet-50', desc: 'إدارة المديريات التابعة للمحافظات' },
   ];
 
-  const collectionNames = { categories, brands, units, packages, report_types: reportTypes, governorates, districts };
+  const collectionNames = { sections, categories, brands, units, packages, report_types: reportTypes, governorates, districts };
   const currentItems = (collectionNames as any)[activeMeta];
   const activeSection = metaSections.find(s => s.id === activeMeta);
 
@@ -1544,6 +1549,7 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
     setInputValue(item ? item.name : '');
     setIconValue(item?.icon || '📦');
     setSelectedGovernorate(item?.governorateId || '');
+    setSelectedSection(item?.sectionId || '');
     setShowForm(true);
   };
 
@@ -1552,7 +1558,8 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
     if (!inputValue.trim()) return;
 
     const data: any = { name: inputValue.trim() };
-    if (activeMeta === 'categories') data.icon = iconValue;
+    if (activeMeta === 'categories' || activeMeta === 'sections') data.icon = iconValue;
+    if (activeMeta === 'categories') data.sectionId = selectedSection;
     if (activeMeta === 'districts') {
       if (!selectedGovernorate) {
         alert('يرجى اختيار المحافظة');
@@ -1697,7 +1704,7 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
                   className="bg-white p-4 rounded-[24px] border border-neutral-100 flex items-center justify-between group hover:border-neutral-200 transition-all duration-300 shadow-sm"
                 >
                   <div className="flex items-center gap-4">
-                    {activeMeta === 'categories' ? (
+                    {(activeMeta === 'categories' || activeMeta === 'sections') ? (
                       <div className="text-2xl w-12 h-12 flex items-center justify-center bg-neutral-50 rounded-xl shadow-inner group-hover:bg-primary-50 transition-colors">
                         {item.icon || '📦'}
                       </div>
@@ -1708,6 +1715,11 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
                     )}
                     <div className="flex flex-col">
                       <h4 className="font-bold text-neutral-800 text-sm leading-tight">{item.name}</h4>
+                      {activeMeta === 'categories' && item.sectionId && (
+                        <p className="text-[10px] font-bold text-primary-500 mt-1">
+                          {sections.find((s: any) => s.id === item.sectionId)?.name || 'بدون قسم'}
+                        </p>
+                      )}
                       {activeMeta === 'districts' && (
                         <p className="text-[10px] font-bold text-primary-500 mt-1">
                           {governorates.find((g: any) => g.id === item.governorateId)?.name || 'غير محدد'}
@@ -1786,7 +1798,7 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
               </div>
               
               <div className="flex flex-col gap-6">
-                {activeMeta === 'categories' && (
+                {(activeMeta === 'categories' || activeMeta === 'sections') && (
                   <div className="flex flex-col gap-3">
                     <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">اختيار أيقونة (Emoji)</label>
                     <input 
@@ -1796,6 +1808,22 @@ function MetaManager({ categories, brands, units, packages, reportTypes, governo
                       onChange={(e) => setIconValue(e.target.value)} 
                       placeholder="🌾" 
                     />
+                  </div>
+                )}
+                {activeMeta === 'categories' && (
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">القسم الكبير</label>
+                    <div className="relative">
+                      <select
+                        value={selectedSection}
+                        onChange={(e) => setSelectedSection(e.target.value)}
+                        className="w-full bg-neutral-50 border border-neutral-100 rounded-[24px] px-8 py-5 font-bold text-neutral-900 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all shadow-inner appearance-none"
+                      >
+                        <option value="">اختر القسم الرئيسي...</option>
+                        {sections.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                      <ChevronDown size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                    </div>
                   </div>
                 )}
                 <div className="flex flex-col gap-3">

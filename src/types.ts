@@ -1,9 +1,17 @@
 export type Trend = 'up' | 'down' | 'stable';
 
+export interface Section {
+  id: string;
+  name: string;
+  icon?: string;
+  order?: number;
+}
+
 export interface Category {
   id: string;
   name: string;
   icon?: string;
+  sectionId?: string;
 }
 
 export interface Unit {
