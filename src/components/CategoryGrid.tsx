@@ -48,8 +48,12 @@ export function CategoryGrid({ categories, products }: CategoryGridProps) {
               <div className="absolute inset-0 bg-primary-500/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               
               <div className="relative z-10 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-2xl group-hover:bg-primary-500 group-hover:text-white transition-all duration-500 shadow-inner">
-                  {cat.icon || '🛍️'}
+                <div className="w-14 h-14 rounded-2xl bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-2xl group-hover:bg-primary-500 group-hover:text-white transition-all duration-500 shadow-inner overflow-hidden">
+                  {cat.image ? (
+                    <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    cat.icon || '🛍️'
+                  )}
                 </div>
                 <div>
                   <h3 className="font-display font-black text-neutral-800 dark:text-neutral-100 text-base leading-tight transition-colors group-hover:text-primary-600">

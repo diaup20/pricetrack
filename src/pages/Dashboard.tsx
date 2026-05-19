@@ -53,15 +53,15 @@ export function Dashboard() {
         {/* Modern Header Section */}
         <div className="flex items-center justify-between px-1">
           <div className="flex flex-col">
-            <h1 className="text-3xl font-display font-black text-neutral-900 dark:text-white leading-tight tracking-tight">سوق الأسعار</h1>
-            <p className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest leading-none mt-1">اليمن • تحديث مباشر</p>
+            <h1 className="text-4xl font-display font-black text-neutral-900 dark:text-white leading-tight tracking-tight">سوق الأسعار</h1>
+            <p className="text-xs font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest leading-none mt-2">اليمن • تحديث مباشر</p>
           </div>
           <button 
             onClick={() => setIsReportOpen(true)}
-            className="flex items-center gap-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-neutral-200 dark:shadow-none hover:translate-y-[-2px] transition-all active:scale-95"
+            className="flex items-center gap-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 px-5 py-3.5 rounded-2xl text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-neutral-200 dark:shadow-none hover:translate-y-[-2px] transition-all active:scale-95"
           >
             <AlertTriangle size={14} className="text-amber-400" />
-            <span>إبلاغ عن حالة</span>
+            <span>طلب تحديث</span>
           </button>
         </div>
 
@@ -95,22 +95,46 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Pill Selection Sections */}
-        <div className="flex flex-col gap-0">
-          <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide px-1">
+        {/* Modern Sections Grid/Scroll */}
+        <div className="flex flex-col gap-3 px-1">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-[0.2em]">تصفح حسب الفئة</h2>
+            {selectedSection !== 'all' && (
+              <button 
+                onClick={() => {
+                  setSelectedSection('all');
+                  setSelectedCategory('all');
+                }}
+                className="text-[9px] font-black text-primary-500 uppercase tracking-widest hover:underline"
+              >
+                عرض الكل
+              </button>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
             <button 
               onClick={() => {
                 setSelectedSection('all');
                 setSelectedCategory('all');
               }}
               className={cn(
-                "px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border whitespace-nowrap",
-                selectedSection === 'all' 
-                  ? "bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:border-white dark:text-neutral-950 shadow-lg" 
-                  : "bg-white dark:bg-neutral-900 border-neutral-100 dark:border-white/10 text-neutral-500"
+                "flex-shrink-0 flex flex-col items-center gap-2 group",
+                selectedSection === 'all' ? "opacity-100" : "opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all"
               )}
             >
-              الجميع
+              <div className={cn(
+                "w-16 h-16 rounded-[24px] flex items-center justify-center text-2xl transition-all shadow-sm border",
+                selectedSection === 'all' 
+                  ? "bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:text-neutral-950 scale-105 shadow-xl shadow-neutral-200 dark:shadow-none" 
+                  : "bg-white dark:bg-neutral-900 border-neutral-100 dark:border-white/10 text-neutral-400 group-hover:border-primary-500/30"
+              )}>
+                🌍
+              </div>
+              <span className={cn(
+                 "text-[9px] font-black uppercase tracking-widest",
+                 selectedSection === 'all' ? "text-neutral-900 dark:text-white" : "text-neutral-400"
+              )}>الكل</span>
             </button>
 
             {sections.map((section) => (
@@ -121,14 +145,26 @@ export function Dashboard() {
                   setSelectedCategory('all');
                 }}
                 className={cn(
-                  "px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border flex items-center gap-2 whitespace-nowrap",
-                  selectedSection === section.id 
-                    ? "bg-primary-600 border-primary-500 text-white shadow-lg shadow-primary-500/20" 
-                    : "bg-white dark:bg-neutral-900 border-neutral-100 dark:border-white/10 text-neutral-500 hover:border-neutral-200"
+                  "flex-shrink-0 flex flex-col items-center gap-2 group",
+                  selectedSection === section.id ? "opacity-100" : "opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all"
                 )}
               >
-                <span>{section.icon || '📦'}</span>
-                <span>{section.name}</span>
+                <div className={cn(
+                  "w-16 h-16 rounded-[24px] flex items-center justify-center text-2xl transition-all shadow-sm border overflow-hidden",
+                  selectedSection === section.id 
+                    ? "bg-primary-600 border-primary-500 text-white scale-105 shadow-xl shadow-primary-500/20" 
+                    : "bg-white dark:bg-neutral-900 border-neutral-100 dark:border-white/10 text-neutral-400 group-hover:border-primary-500/30"
+                )}>
+                  {section.image ? (
+                    <img src={section.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span>{section.icon || '📦'}</span>
+                  )}
+                </div>
+                <span className={cn(
+                   "text-[9px] font-black uppercase tracking-widest",
+                   selectedSection === section.id ? "text-primary-600" : "text-neutral-400"
+                )}>{section.name}</span>
               </button>
             ))}
           </div>

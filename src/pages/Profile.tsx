@@ -482,8 +482,11 @@ export function Profile() {
           تسجيل الخروج من الحساب
         </button>
 
-        <div className="text-center">
-            <p className="text-[10px] font-black text-neutral-300 dark:text-neutral-700 uppercase tracking-widest opacity-60">كم سعره اليمن • v1.0.7</p>
+        <div className="text-center space-y-2">
+            <p className="text-[10px] font-black text-neutral-300 dark:text-neutral-700 uppercase tracking-widest opacity-60">كم سعره اليمن • v1.0.8</p>
+            <p className="text-[9px] font-black text-primary-500/40 uppercase tracking-[0.1em] px-4 leading-relaxed">
+              برعاية وزارة الاقتصاد والصناعة والاستثمار <br /> قطاع التجارة الداخلية
+            </p>
         </div>
       </div>
     </Layout>

@@ -4,6 +4,7 @@ export interface Section {
   id: string;
   name: string;
   icon?: string;
+  image?: string;
   order?: number;
 }
 
@@ -11,6 +12,7 @@ export interface Category {
   id: string;
   name: string;
   icon?: string;
+  image?: string;
   sectionId?: string;
 }
 
@@ -41,6 +43,7 @@ export interface ProductVariant {
 export interface Product {
   id: string;
   name: string;
+  sectionId?: string;
   categoryId: string;
   unitId: string;
   packageId: string;

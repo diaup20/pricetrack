@@ -45,36 +45,36 @@ export function ExchangeRateWidget({ rates }: ExchangeRateWidgetProps) {
                      rate.fromCurrency.includes('يمني') ? '🇾🇪' : '💱'}
                   </div>
                   <div className="flex flex-col">
-                    <h4 className="text-[13px] font-black text-white leading-tight">
+                    <h4 className="text-sm font-bold text-white leading-tight">
                       {rate.fromCurrency} 
                       {rate.region && (
                         <span className={cn(
-                          "mr-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest",
+                          "mr-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest",
                           rate.region === 'sanaa' ? "bg-amber-500/20 text-amber-500" : "bg-blue-500/20 text-blue-500"
                         )}>
                           {rate.region === 'sanaa' ? 'صنعاء' : 'عدن'}
                         </span>
                       )}
                     </h4>
-                    <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">مقابل {rate.toCurrency}</span>
+                    <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest">مقابل {rate.toCurrency}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                   <TrendIndicator trend={rate.trend} className="w-3 h-3 mb-1" />
-                   <span className="text-[8px] font-black text-white/20 uppercase">معدل مباشر</span>
+                   <TrendIndicator trend={rate.trend} className="w-3.5 h-3.5 mb-1" />
+                   <span className="text-[9px] font-bold text-white/20 uppercase">معدل مباشر</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 mt-auto">
-                <div className="flex-1 flex flex-col items-center py-2.5 px-2 rounded-2xl bg-black/20 border border-white/5">
-                  <span className="text-[8px] font-black text-primary-400/60 uppercase tracking-widest mb-1">شراء</span>
-                  <span className="text-lg font-accent font-black text-primary-400">
+                <div className="flex-1 flex flex-col items-center py-3 px-2 rounded-2xl bg-black/20 border border-white/5">
+                  <span className="text-[10px] font-bold text-primary-400/60 uppercase tracking-widest mb-1">شراء</span>
+                  <span className="text-xl font-accent font-black text-primary-400">
                     {(rate.buyRate || rate.rate).toLocaleString('en-US')}
                   </span>
                 </div>
-                <div className="flex-1 flex flex-col items-center py-2.5 px-2 rounded-2xl bg-black/20 border border-white/5">
-                  <span className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1">بيع</span>
-                  <span className="text-lg font-accent font-black text-white">
+                <div className="flex-1 flex flex-col items-center py-3 px-2 rounded-2xl bg-black/20 border border-white/5">
+                  <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-1">بيع</span>
+                  <span className="text-xl font-accent font-black text-white">
                     {(rate.sellRate || rate.rate).toLocaleString('en-US')}
                   </span>
                 </div>

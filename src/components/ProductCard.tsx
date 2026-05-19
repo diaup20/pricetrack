@@ -54,20 +54,20 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="flex flex-col gap-0.5">
         <div className="flex items-start justify-between gap-1.5">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 mb-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 mb-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
               <span className="text-xs">{section?.icon || '📦'}</span>
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mx-1">{section?.name || 'عام'}</span>
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mx-1">{section?.name || 'عام'}</span>
               <span className="text-neutral-300 dark:text-neutral-700 mx-1 text-[10px]">{'<'}</span>
-              <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">{category?.name}</span>
+              <span className="text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest">{category?.name}</span>
             </div>
-            <h3 className="font-display font-black text-base leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
+            <h3 className="font-display font-bold text-base leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
             
             {brand && (
               <div className="flex flex-col gap-2 mt-1.5">
                 <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
                   <Tag size={10} className="text-primary-500" />
-                  <span className="text-[10px] font-bold">العلامة التجارية:</span>
-                  <span className="text-[10px] font-black text-neutral-900 dark:text-white">{brand.name}</span>
+                  <span className="text-[10px] font-medium">العلامة التجارية:</span>
+                  <span className="text-[10px] font-semibold text-neutral-900 dark:text-white">{brand.name}</span>
                 </div>
                 <motion.button 
                   whileHover={{ scale: 1.05 }}
@@ -98,14 +98,14 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Sizes Section - Now with buttons */}
       <div className="flex flex-col gap-2 mt-1">
         <div className="flex items-center justify-between px-1">
-          <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">الأحجام المتوفرة</span>
+          <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">الأحجام المتوفرة</span>
           <div className="h-px flex-1 mx-3 bg-neutral-100 dark:bg-white/5" />
         </div>
         <div className="flex flex-wrap gap-2 px-0.5">
           <button 
             onClick={() => setSelectedVariantIndex(-1)}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border",
+              "px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border",
               selectedVariantIndex === -1 
                 ? "bg-primary-600 border-primary-500 text-white shadow-lg shadow-primary-500/20 scale-105" 
                 : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-100 dark:border-white/5 hover:border-primary-200 dark:hover:border-primary-900/30"
@@ -118,7 +118,7 @@ export function ProductCard({ product }: ProductCardProps) {
               key={idx}
               onClick={() => setSelectedVariantIndex(idx)}
               className={cn(
-                "px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border",
+                "px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border",
                 selectedVariantIndex === idx 
                   ? "bg-primary-600 border-primary-500 text-white shadow-lg shadow-primary-500/20 scale-105" 
                   : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-100 dark:border-white/5 hover:border-primary-200 dark:hover:border-primary-900/30"
@@ -130,28 +130,20 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 mt-1 p-2 rounded-lg bg-primary-500/[0.04] dark:bg-white/[0.04] border border-primary-500/10 dark:border-white/10">
+      <div className="flex flex-col gap-1 mt-1 p-2.5 rounded-xl bg-primary-500/[0.04] dark:bg-white/[0.04] border border-primary-500/10 dark:border-white/10">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-tight">سعر المستهلك</span>
+          <span className="text-[11px] font-bold text-primary-700 dark:text-primary-400 uppercase tracking-tight">سعر المستهلك</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-base font-black text-primary-600 dark:text-primary-400 font-accent tracking-tighter">
+            <span className="text-lg font-black text-primary-600 dark:text-primary-400 font-accent tracking-tighter">
               {formatCurrency(currentPrices.retail)}
             </span>
-            {currentPrices.previousRetail !== undefined && currentPrices.previousRetail !== currentPrices.retail && (
-              <div className={cn(
-                "text-[7px] font-black px-1 py-0.5 rounded flex items-center shadow-sm text-white",
-                (currentPrices.retail - currentPrices.previousRetail) > 0 ? "bg-red-500 shadow-red-500/20" : "bg-green-500 shadow-green-500/20"
-              )}>
-                {((currentPrices.retail - currentPrices.previousRetail) / currentPrices.previousRetail * 100).toFixed(0)}%
-              </div>
-            )}
           </div>
         </div>
 
         {currentPrices.previousRetail !== undefined && currentPrices.previousRetail !== currentPrices.retail && (
           <div className="flex items-center justify-between mt-0.5">
-            <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400">السعر السابق</span>
-            <span className="text-xs font-black line-through text-neutral-400 dark:text-neutral-500 font-accent tracking-tighter opacity-80">
+            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">السعر السابق</span>
+            <span className="text-sm font-bold line-through text-neutral-400 dark:text-neutral-500 font-accent tracking-tighter opacity-80">
               {formatCurrency(currentPrices.previousRetail)}
             </span>
           </div>
@@ -160,9 +152,9 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-dashed border-neutral-100 dark:border-white/10">
           <div className="flex items-center gap-1 text-primary-500 dark:text-primary-400">
             <Calendar size={10} className="stroke-[3]" />
-            <span className="text-[9px] font-black uppercase">آخر تحديث</span>
+            <span className="text-[10px] font-bold uppercase">آخر تحديث</span>
           </div>
-          <span className="text-[10px] font-black text-neutral-900 dark:text-white bg-neutral-100 dark:bg-white/5 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-semibold text-neutral-800 dark:text-white bg-neutral-50 dark:bg-white/5 px-1.5 py-0.5 rounded">
             {product.lastUpdatedAt ? format(new Date(product.lastUpdatedAt.seconds * 1000), 'd MMM yyyy', { locale: ar }) : 'جديد'}
           </span>
         </div>

@@ -4,7 +4,7 @@ import { X, Send, Camera, MapPin, AlertTriangle, Phone, User, Calendar, Store, T
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ReportType } from '../types';
-import { cn } from '../lib/utils';
+import { cn, compressImage } from '../lib/utils';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -37,69 +37,16 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     return /^7[01378]\d{7}$/.test(phone);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024 * 5) { // 5MB max for initial selection
-        alert('حجم الملف كبير جداً');
-        return;
+      try {
+        const compressed = await compressImage(file, 400, 32000); // 32KB limit
+        setFormData(prev => ({ ...prev, imageUrl: compressed }));
+      } catch (error) {
+        console.error('Report image upload error:', error);
+        alert('تعذر ضغط الصورة بشكل كافٍ. يرجى اختيار صورة أصغر.');
       }
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Target a very small size to stay well under 32KB limit
-          const MAX_SIZE = 150; 
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
-              width = MAX_SIZE;
-            }
-          } else {
-            if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height;
-              height = MAX_SIZE;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-
-          // Use low quality to ensure small base64 string
-          let quality = 0.3;
-          let compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-          
-          // Iteratively reduce quality if still too large
-          while (compressedBase64.length > 30000 && quality > 0.05) {
-            quality -= 0.05;
-            compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-          }
-
-          if (compressedBase64.length > 32767) {
-            // Final emergency fallback: resize even more
-            const tinyCanvas = document.createElement('canvas');
-            tinyCanvas.width = 80;
-            tinyCanvas.height = (80 / width) * height;
-            tinyCanvas.getContext('2d')?.drawImage(canvas, 0, 0, tinyCanvas.width, tinyCanvas.height);
-            compressedBase64 = tinyCanvas.toDataURL('image/jpeg', 0.1);
-          }
-
-          if (compressedBase64.length <= 32767) {
-            setFormData(prev => ({ ...prev, imageUrl: compressedBase64 }));
-          } else {
-            alert('تعذر ضغط الصورة بشكل كافٍ. يرجى اختيار صورة أصغر.');
-          }
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
     }
   };
 

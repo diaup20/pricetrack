@@ -52,6 +52,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="max-w-md mx-auto bg-[#F8F9FA] dark:bg-neutral-950 min-h-screen pb-24 shadow-2xl shadow-neutral-200/50 dark:shadow-none relative transition-colors duration-300">
+      <div className="bg-primary-900 text-white text-[10px] font-black py-2 px-4 text-center uppercase tracking-[0.2em] relative overflow-hidden">
+        <div className="relative z-10 opacity-90">
+          برعاية وزارة الاقتصاد والصناعة والاستثمار - قطاع التجارة الداخلية
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-primary-800 to-primary-950 opacity-50" />
+      </div>
       <header className="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl px-6 py-5 sticky top-0 z-40 flex items-center justify-between border-b border-neutral-100/50 dark:border-white/5 transition-colors">
         <h1 className="text-2xl font-display font-black tracking-tight flex items-center gap-2.5 dark:text-white">
           <div className="bg-primary-600 text-white p-1.5 rounded-xl rotate-3 shadow-lg shadow-primary-200 dark:shadow-primary-900/20">

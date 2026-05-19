@@ -14,7 +14,7 @@ import {
   setDoc,
   writeBatch 
 } from 'firebase/firestore';
-import { OperationType, handleFirestoreError } from '../lib/utils';
+import { OperationType, handleFirestoreError, compressImage } from '../lib/utils';
 import { 
   LogOut,
   LayoutGrid,
@@ -237,7 +237,7 @@ export function Admin() {
           )}
 
           {activeTab === 'products' && (
-            <ProductManager products={products} categories={categories} brands={brands} units={units} packages={packages} />
+            <ProductManager sections={sections} products={products} categories={categories} brands={brands} units={units} packages={packages} />
           )}
           {activeTab === 'rates' && (
             <ExchangeRateManager rates={exchangeRates} />
@@ -507,7 +507,7 @@ const convertArabicNumerals = (text: string) => {
   return res;
 };
 
-function ProductManager({ products, categories, brands, units, packages }: any) {
+function ProductManager({ sections, products, categories, brands, units, packages }: any) {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -884,6 +884,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
         <ProductForm 
           onClose={() => setShowForm(false)} 
           initialData={editingProduct}
+          sections={sections}
           categories={categories}
           brands={brands}
           units={units}
@@ -895,6 +896,7 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
         {filtered.map((p: Product) => {
           const cat = categories.find((c:any) => c.id === p.categoryId);
           const brand = brands.find((b:any) => b.id === p.brandId);
+          const section = sections.find((s:any) => s.id === (p.sectionId || cat?.sectionId));
           return (
             <div key={p.id} className="bg-white dark:bg-neutral-900 p-5 rounded-[32px] border border-neutral-100 dark:border-white/5 flex flex-col gap-4 shadow-sm group hover:border-primary-500/30 transition-all duration-300">
               <div className="flex items-start justify-between">
@@ -908,12 +910,17 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="font-bold text-sm text-neutral-900 dark:text-white truncate group-hover:text-primary-600 transition-colors">{p.name}</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[9px] font-black uppercase text-neutral-400 bg-neutral-50 dark:bg-neutral-800 px-2 py-0.5 rounded-md truncate max-w-[80px]">
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {section && (
+                        <span className="text-[8px] font-black uppercase text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded-md truncate max-w-[70px]">
+                          {section.name}
+                        </span>
+                      )}
+                      <span className="text-[8px] font-black uppercase text-neutral-400 bg-neutral-50 dark:bg-neutral-800 px-1.5 py-0.5 rounded-md truncate max-w-[70px]">
                         {cat?.name || 'بدون قسم'}
                       </span>
                       {brand && (
-                        <span className="text-[9px] font-black uppercase text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md truncate max-w-[80px]">
+                        <span className="text-[8px] font-black uppercase text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-md truncate max-w-[70px]">
                           {brand.name}
                         </span>
                       )}
@@ -985,10 +992,11 @@ function ProductManager({ products, categories, brands, units, packages }: any) 
   );
 }
 
-function ProductForm({ onClose, initialData, categories, brands, units, packages }: any) {
+function ProductForm({ onClose, initialData, sections, categories, brands, units, packages }: any) {
   const [formTab, setFormTab] = useState<'basic' | 'prices' | 'variants'>('basic');
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
+    sectionId: initialData?.sectionId || (initialData?.categoryId ? categories.find((c: any) => c.id === initialData.categoryId)?.sectionId : '') || '',
     categoryId: initialData?.categoryId || '',
     brandId: initialData?.brandId || '',
     unitId: initialData?.unitId || '',
@@ -1010,6 +1018,11 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
     })),
   });
 
+  const filteredCategoriesForSection = React.useMemo(() => {
+    if (!formData.sectionId) return [];
+    return categories.filter((c: any) => c.sectionId === formData.sectionId);
+  }, [categories, formData.sectionId]);
+
   const addVariant = () => {
     setFormData({
       ...formData,
@@ -1029,67 +1042,17 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
     setFormData({ ...formData, variants: newVariants });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 1024 * 1024 * 5) {
-      alert('حجم الملف كبير جداً');
-      return;
+    try {
+      const compressed = await compressImage(file, 400, 32000); // 32KB limit
+      setFormData({ ...formData, imageUrl: compressed });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      alert('حدث خطأ أثناء معالجة الصورة، يرجى المحاولة بصورة أصغر.');
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Target a small size to stay under 32KB limit
-        const MAX_SIZE = 300; 
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        let quality = 0.5;
-        let compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        
-        while (compressedBase64.length > 30000 && quality > 0.1) {
-          quality -= 0.1;
-          compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        }
-
-        if (compressedBase64.length > 32767) {
-          const tinyCanvas = document.createElement('canvas');
-          tinyCanvas.width = 150;
-          tinyCanvas.height = (150 / width) * height;
-          tinyCanvas.getContext('2d')?.drawImage(canvas, 0, 0, tinyCanvas.width, tinyCanvas.height);
-          compressedBase64 = tinyCanvas.toDataURL('image/jpeg', 0.2);
-        }
-
-        if (compressedBase64.length <= 32767) {
-          setFormData({ ...formData, imageUrl: compressedBase64 });
-        } else {
-          alert('تعذر ضغط الصورة بشكل كافٍ. يرجى اختيار صورة أصغر.');
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1192,12 +1155,23 @@ function ProductForm({ onClose, initialData, categories, brands, units, packages
                   <Input label="اسم المنتج" value={formData.name} onChange={(e:any) => setFormData({...formData, name: e.target.value})} required placeholder="مثال: دقيق السعيد" />
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Select label="القسم" value={formData.categoryId} options={categories} onChange={(e:any) => setFormData({...formData, categoryId: e.target.value})} required />
-                    <Select label="العلامة التجارية" value={formData.brandId} options={brands} onChange={(e:any) => setFormData({...formData, brandId: e.target.value})} required />
+                    <Select label="القسم الرئيسي" value={formData.sectionId} options={sections} onChange={(e:any) => setFormData({...formData, sectionId: e.target.value, categoryId: ''})} required />
+                    <Select 
+                      label="الصنف الفرعي" 
+                      value={formData.categoryId} 
+                      options={filteredCategoriesForSection} 
+                      onChange={(e:any) => setFormData({...formData, categoryId: e.target.value})} 
+                      required 
+                      disabled={!formData.sectionId}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Select label="العلامة التجارية" value={formData.brandId} options={brands} onChange={(e:any) => setFormData({...formData, brandId: e.target.value})} required />
                     <Select label="الوحدة الأساسية" value={formData.unitId} options={units} onChange={(e:any) => setFormData({...formData, unitId: e.target.value})} required />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Select label="العبوة الأساسية" value={formData.packageId} options={packages} onChange={(e:any) => setFormData({...formData, packageId: e.target.value})} required />
                   </div>
 
@@ -1526,8 +1500,22 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
   const [editingItem, setEditingItem] = useState<any>(null);
   const [inputValue, setInputValue] = useState('');
   const [iconValue, setIconValue] = useState('📦');
+  const [imageUrl, setImageUrl] = useState('');
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file, 200, 25000); // Very small for categories/sections (25KB)
+        setImageUrl(compressed);
+      } catch (error) {
+        console.error('Meta image upload error:', error);
+        alert('يرجى اختيار صورة أصغر أو رمز تعبيري');
+      }
+    }
+  };
 
   const metaSections = [
     { id: 'sections', label: 'الأقسام الكبرى', icon: <LayoutGrid size={18} />, color: 'text-indigo-500', bg: 'bg-indigo-50', desc: 'إدارة الأقسام الرئيسية (مواد غذائية، لحوم، إلخ)' },
@@ -1548,6 +1536,7 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
     setEditingItem(item);
     setInputValue(item ? item.name : '');
     setIconValue(item?.icon || '📦');
+    setImageUrl(item?.image || '');
     setSelectedGovernorate(item?.governorateId || '');
     setSelectedSection(item?.sectionId || '');
     setShowForm(true);
@@ -1558,7 +1547,10 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
     if (!inputValue.trim()) return;
 
     const data: any = { name: inputValue.trim() };
-    if (activeMeta === 'categories' || activeMeta === 'sections') data.icon = iconValue;
+    if (activeMeta === 'categories' || activeMeta === 'sections') {
+      data.icon = iconValue;
+      data.image = imageUrl;
+    }
     if (activeMeta === 'categories') data.sectionId = selectedSection;
     if (activeMeta === 'districts') {
       if (!selectedGovernorate) {
@@ -1692,55 +1684,67 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
           </div>
         </header>
 
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <AnimatePresence mode="popLayout">
               {currentItems.map((item: any) => (
                 <motion.div 
-                  layout
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   key={item.id} 
-                  className="bg-white p-4 rounded-[24px] border border-neutral-100 flex items-center justify-between group hover:border-neutral-200 transition-all duration-300 shadow-sm"
+                  className="bg-white dark:bg-neutral-900 p-5 rounded-[28px] border border-neutral-100 dark:border-white/5 flex flex-col gap-4 group hover:border-primary-500/30 transition-all duration-300 shadow-sm hover:shadow-xl h-full"
                 >
                   <div className="flex items-center gap-4">
                     {(activeMeta === 'categories' || activeMeta === 'sections') ? (
-                      <div className="text-2xl w-12 h-12 flex items-center justify-center bg-neutral-50 rounded-xl shadow-inner group-hover:bg-primary-50 transition-colors">
-                        {item.icon || '📦'}
+                      <div className="relative w-16 h-16 flex-shrink-0">
+                        {item.image ? (
+                          <img 
+                            src={item.image} 
+                            alt={item.name} 
+                            className="w-16 h-16 rounded-2xl object-cover shadow-inner border border-neutral-100 dark:border-white/10"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="text-3xl w-16 h-16 flex items-center justify-center bg-neutral-50 dark:bg-neutral-800 rounded-2xl shadow-inner group-hover:bg-primary-500 group-hover:text-white transition-all duration-500">
+                            {item.icon || '📦'}
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <div className={cn("w-12 h-12 flex items-center justify-center rounded-xl shadow-inner bg-neutral-50 group-hover:bg-neutral-100 transition-colors", activeSection?.color)}>
-                        {activeSection?.icon}
+                      <div className={cn("w-16 h-16 flex-shrink-0 flex items-center justify-center rounded-2xl shadow-inner bg-neutral-50 dark:bg-neutral-800 group-hover:bg-neutral-100 dark:group-hover:bg-neutral-700 transition-all duration-500", activeSection?.color)}>
+                         {activeSection?.icon && React.cloneElement(activeSection.icon as React.ReactElement, { size: 24 })}
                       </div>
                     )}
-                    <div className="flex flex-col">
-                      <h4 className="font-bold text-neutral-800 text-sm leading-tight">{item.name}</h4>
+                    <div className="flex flex-col justify-center overflow-hidden">
+                      <h4 className="font-bold text-neutral-800 dark:text-white text-sm leading-tight truncate px-1">{item.name}</h4>
                       {activeMeta === 'categories' && item.sectionId && (
-                        <p className="text-[10px] font-bold text-primary-500 mt-1">
+                        <p className="text-[10px] font-black text-primary-500 mt-1.5 uppercase tracking-widest bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 rounded-full self-start">
                           {sections.find((s: any) => s.id === item.sectionId)?.name || 'بدون قسم'}
                         </p>
                       )}
                       {activeMeta === 'districts' && (
-                        <p className="text-[10px] font-bold text-primary-500 mt-1">
+                        <p className="text-[10px] font-black text-primary-500 mt-1.5 uppercase tracking-widest bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 rounded-full self-start">
                           {governorates.find((g: any) => g.id === item.governorateId)?.name || 'غير محدد'}
                         </p>
                       )}
-                      <p className="text-[9px] font-bold text-neutral-300 uppercase tracking-widest mt-1">المعرف: {item.id.substring(0, 8)}</p>
+                      <p className="text-[9px] font-bold text-neutral-300 dark:text-neutral-600 uppercase tracking-widest mt-1">ID: {item.id.substring(0, 8)}</p>
                     </div>
                   </div>
                   
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex gap-2 mt-auto pt-4 border-t border-dashed border-neutral-100 dark:border-white/5">
                     <button 
                       onClick={() => handleOpenForm(item)} 
-                      className="p-2.5 bg-neutral-50 text-neutral-400 rounded-xl hover:bg-neutral-900 hover:text-white transition-all shadow-sm"
+                      className="flex-1 py-2.5 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-neutral-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm flex items-center justify-center gap-2 text-[10px] font-bold"
                     >
-                      <Edit2 size={16} />
+                      <Edit2 size={14} />
+                      تعديل
                     </button>
                     <button 
                       onClick={() => handleDelete(item.id)} 
-                      className="p-2.5 bg-neutral-50 text-neutral-400 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                      className="flex-1 py-2.5 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-400 dark:text-neutral-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2 text-[10px] font-bold"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
+                      حذف
                     </button>
                   </div>
                 </motion.div>
@@ -1798,16 +1802,42 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
               </div>
               
               <div className="flex flex-col gap-6">
-                {(activeMeta === 'categories' || activeMeta === 'sections') && (
-                  <div className="flex flex-col gap-3">
-                    <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">اختيار أيقونة (Emoji)</label>
-                    <input 
-                      type="text" 
-                      className="bg-neutral-50 border border-neutral-100 rounded-[24px] px-8 py-5 text-4xl text-center focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all shadow-inner"
-                      value={iconValue} 
-                      onChange={(e) => setIconValue(e.target.value)} 
-                      placeholder="🌾" 
-                    />
+                {(activeMeta === 'sections' || activeMeta === 'categories') && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mr-5">تحميل صورة</label>
+                      <div className="relative group/upload h-32 rounded-[24px] border-2 border-dashed border-neutral-100 dark:border-white/5 bg-neutral-50/50 dark:bg-neutral-800/30 overflow-hidden transition-all hover:border-primary-500/50">
+                        {imageUrl ? (
+                          <>
+                            <img src={imageUrl} alt="preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <button 
+                              type="button"
+                              onClick={() => setImageUrl('')}
+                              className="absolute top-2 left-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover/upload:opacity-100 transition-all shadow-lg"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer">
+                            <Upload size={24} className="text-neutral-300 dark:text-neutral-600 mb-2 transition-transform group-hover/upload:-translate-y-1" />
+                            <span className="text-[10px] font-bold text-neutral-400">اضغط لرفع صورة</span>
+                            <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-3">
+                      <label className="text-[11px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mr-5">أو رمز (Emoji)</label>
+                      <input 
+                        type="text" 
+                        className="h-32 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-white/5 rounded-[24px] px-8 py-5 text-4xl text-center focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white dark:focus:bg-neutral-700 transition-all shadow-inner dark:text-white"
+                        value={iconValue} 
+                        onChange={(e) => setIconValue(e.target.value)} 
+                        placeholder="📦" 
+                      />
+                    </div>
                   </div>
                 )}
                 {activeMeta === 'categories' && (
