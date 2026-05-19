@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, ShieldCheck, User, Package, Moon, Sun, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { Home, Search, ShieldCheck, User, Package, Moon, Sun, LayoutGrid, AlertTriangle, WifiOff } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,9 +49,33 @@ export function Navigation() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { isDark, toggleTheme } = useTheme();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   return (
     <div className="max-w-md mx-auto bg-[#F8F9FA] dark:bg-neutral-950 min-h-screen pb-24 shadow-2xl shadow-neutral-200/50 dark:shadow-none relative transition-colors duration-300">
+      {!isOnline && (
+        <motion.div 
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className="bg-amber-500 text-white text-[9px] font-black py-1.5 px-4 text-center uppercase tracking-widest flex items-center justify-center gap-2 overflow-hidden z-[60]"
+        >
+          <WifiOff size={10} />
+          أنت تتصفح في وضع عدم الاتصال - يتم عرض البيانات المخزنة
+        </motion.div>
+      )}
       <div className="bg-primary-900 text-white text-[10px] font-black py-2 px-4 text-center uppercase tracking-[0.2em] relative overflow-hidden">
         <div className="relative z-10 opacity-90">
           برعاية وزارة الاقتصاد والصناعة والاستثمار - قطاع التجارة الداخلية
