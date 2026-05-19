@@ -61,7 +61,7 @@ export function Dashboard() {
             className="flex items-center gap-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 px-5 py-3.5 rounded-2xl text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-neutral-200 dark:shadow-none hover:translate-y-[-2px] transition-all active:scale-95"
           >
             <AlertTriangle size={14} className="text-amber-400" />
-            <span>طلب تحديث</span>
+            <span>إضافة بلاغ</span>
           </button>
         </div>
 
