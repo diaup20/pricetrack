@@ -14,6 +14,7 @@ export interface Category {
   icon?: string;
   image?: string;
   sectionId?: string;
+  order?: number;
 }
 
 export interface Unit {

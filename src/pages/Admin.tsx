@@ -52,6 +52,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Product, Trend, ProductVariant, Report, ReportStatus, ReportType } from '../types';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  CartesianGrid, 
+  PieChart, 
+  Pie, 
+  Cell 
+} from 'recharts';
 
 export function Admin() {
   const { user, isAdmin, loading } = useAuth();
@@ -1503,6 +1515,7 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
   const [imageUrl, setImageUrl] = useState('');
   const [selectedGovernorate, setSelectedGovernorate] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
+  const [orderValue, setOrderValue] = useState<number | string>('');
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1539,6 +1552,7 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
     setImageUrl(item?.image || '');
     setSelectedGovernorate(item?.governorateId || '');
     setSelectedSection(item?.sectionId || '');
+    setOrderValue(item?.order !== undefined ? item.order : '');
     setShowForm(true);
   };
 
@@ -1550,6 +1564,9 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
     if (activeMeta === 'categories' || activeMeta === 'sections') {
       data.icon = iconValue;
       data.image = imageUrl;
+    }
+    if (activeMeta === 'sections' || activeMeta === 'categories') {
+      data.order = orderValue !== '' ? Number(orderValue) : 0;
     }
     if (activeMeta === 'categories') data.sectionId = selectedSection;
     if (activeMeta === 'districts') {
@@ -1717,10 +1734,20 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
                     )}
                     <div className="flex flex-col justify-center overflow-hidden">
                       <h4 className="font-bold text-neutral-800 dark:text-white text-sm leading-tight truncate px-1">{item.name}</h4>
-                      {activeMeta === 'categories' && item.sectionId && (
-                        <p className="text-[10px] font-black text-primary-500 mt-1.5 uppercase tracking-widest bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 rounded-full self-start">
-                          {sections.find((s: any) => s.id === item.sectionId)?.name || 'بدون قسم'}
+                      {activeMeta === 'sections' && (
+                        <p className="text-[10px] font-black text-indigo-500 mt-1.5 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full self-start">
+                          الترتيب: {item.order !== undefined ? item.order : 'غير محدد'}
                         </p>
+                      )}
+                      {activeMeta === 'categories' && item.sectionId && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 rounded-full">
+                            {sections.find((s: any) => s.id === item.sectionId)?.name || 'بدون قسم'}
+                          </span>
+                          <span className="text-[10px] font-black text-purple-500 uppercase tracking-widest bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded-full">
+                            الترتيب: {item.order !== undefined ? item.order : 'غير محدد'}
+                          </span>
+                        </div>
                       )}
                       {activeMeta === 'districts' && (
                         <p className="text-[10px] font-black text-primary-500 mt-1.5 uppercase tracking-widest bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 rounded-full self-start">
@@ -1869,6 +1896,21 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
                   />
                 </div>
 
+                {(activeMeta === 'sections' || activeMeta === 'categories') && (
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">
+                      {activeMeta === 'sections' ? 'ترتيب القسم' : 'ترتيب الصنف'} (رقم أصغر يظهر أولاً)
+                    </label>
+                    <input 
+                      type="number" 
+                      className="bg-neutral-50 border border-neutral-100 rounded-[24px] px-8 py-5 font-bold text-neutral-900 focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:bg-white transition-all shadow-inner text-lg"
+                      value={orderValue} 
+                      onChange={(e) => setOrderValue(e.target.value)} 
+                      placeholder="مثال: 1 للظهور أولاً، 2 للظهور ثانياً..." 
+                    />
+                  </div>
+                )}
+
                 {activeMeta === 'districts' && (
                   <div className="flex flex-col gap-3">
                     <label className="text-[11px] font-black text-neutral-400 uppercase tracking-widest mr-5">المحافظة التابعة لها</label>
@@ -1919,6 +1961,50 @@ function ReportManager() {
   }, []);
 
   const filtered = reports.filter(r => filterStatus === 'all' || r.status === filterStatus);
+
+  const [showAnalytics, setShowAnalytics] = useState(true);
+
+  // --- Analytics calculations ---
+  const typeCounts: Record<string, number> = {};
+  const govCounts: Record<string, number> = {};
+  const itemCounts: Record<string, number> = {};
+
+  reports.forEach(r => {
+    // 1. Report Type
+    const t = r.reportType || 'مخالفة سعرية';
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+
+    // 2. Governorate
+    const g = r.governorate || 'غير محدد';
+    govCounts[g] = (govCounts[g] || 0) + 1;
+
+    // 3. Product / Item
+    const item = r.itemName || 'غير محدد';
+    itemCounts[item] = (itemCounts[item] || 0) + 1;
+  });
+
+  const typeChartData = Object.entries(typeCounts).map(([name, value]) => ({ name, value }));
+  const govChartData = Object.entries(govCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a,b) => b.value - a.value);
+  const itemChartData = Object.entries(itemCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a,b) => b.value - a.value)
+    .slice(0, 5);
+
+  const chartColors = ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-neutral-950 dark:bg-neutral-800 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-lg border border-white/10 flex flex-col gap-0.5 z-[100]" dir="rtl">
+          <span className="opacity-90">{payload[0].name}</span>
+          <span className="font-mono text-primary-400">{payload[0].value} بلاغ</span>
+        </div>
+      );
+    }
+    return null;
+  };
 
   const handleExportReports = () => {
     if (!reports || reports.length === 0) {
@@ -1998,6 +2084,13 @@ function ReportManager() {
         </h3>
         <div className="flex flex-wrap items-center gap-2">
           <button 
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-bold flex items-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all border border-indigo-100 dark:border-indigo-500/20 shadow-sm"
+          >
+            <LineChart size={14} />
+            {showAnalytics ? 'إخفاء الإحصائيات' : 'عرض الإحصائيات'}
+          </button>
+          <button 
             onClick={handleExportReports}
             className="bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-4 py-2 rounded-xl text-[10px] font-bold flex items-center gap-2 hover:bg-green-100 transition-all border border-green-100 dark:border-green-500/20 shadow-sm"
           >
@@ -2022,6 +2115,134 @@ function ReportManager() {
           </div>
         </div>
       </div>
+
+      {showAnalytics && reports.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 1: نوع البلاغات */}
+          <div className="bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm flex flex-col gap-4">
+            <div>
+              <h4 className="text-sm font-black text-neutral-900 dark:text-white">توزيع البلاغات حسب النوع</h4>
+              <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 mt-0.5">مقارنة نسب البلاغات المسجلة</p>
+            </div>
+            
+            <div className="h-[200px] w-full relative flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={typeChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {typeChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} stroke="transparent" />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-2xl font-black text-neutral-900 dark:text-white">{reports.length}</span>
+                <span className="text-[9px] font-bold text-neutral-400">إجمالي البلاغات</span>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 gap-y-1.5 mt-2 justify-center">
+              {typeChartData.map((item, index) => (
+                <div key={item.name} className="flex items-center gap-1 bg-neutral-50 dark:bg-neutral-800/40 px-2 py-1 rounded-full text-[9px] font-bold">
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: chartColors[index % chartColors.length] }} />
+                  <span className="text-neutral-600 dark:text-neutral-400 truncate max-w-[80px]">{item.name}</span>
+                  <span className="text-neutral-400 font-mono ml-0.5">({item.value})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card 2: البلاغات حسب المحافظة */}
+          <div className="bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm flex flex-col gap-4">
+            <div>
+              <h4 className="text-sm font-black text-neutral-900 dark:text-white">البلاغات حسب المحافظة</h4>
+              <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 mt-0.5">عدد البلاغات في كل محافظة</p>
+            </div>
+            
+            <div className="h-[220px] w-full">
+              {govChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={govChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" className="dark:stroke-neutral-800" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#888888', fontSize: 9, fontWeight: 'bold' }} 
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#888888', fontSize: 9, fontWeight: 'bold' }} 
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill="#3b82f6" radius={[6, 6, 0, 0]}>
+                      {govChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={chartColors[(index + 1) % chartColors.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-neutral-400 font-bold">لا توجد بيانات كافية</div>
+              )}
+            </div>
+          </div>
+
+          {/* Card 3: أعلى السلع إبلاغاً */}
+          <div className="bg-white dark:bg-neutral-900 p-6 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm flex flex-col gap-4">
+            <div>
+              <h4 className="text-sm font-black text-neutral-900 dark:text-white">أكثر السلع بلاغاً (أعلى 5)</h4>
+              <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 mt-0.5">السلع الأكثر تكراراً بالبلاغات</p>
+            </div>
+            
+            <div className="h-[220px] w-full">
+              {itemChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={itemChartData} 
+                    layout="vertical"
+                    margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" className="dark:stroke-neutral-800" />
+                    <XAxis 
+                      type="number" 
+                      tick={{ fill: '#888888', fontSize: 9, fontWeight: 'bold' }} 
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      tick={{ fill: '#888888', fontSize: 9, fontWeight: 'bold' }} 
+                      axisLine={false}
+                      tickLine={false}
+                      width={80}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]}>
+                      {itemChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={chartColors[(index + 3) % chartColors.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-neutral-400 font-bold">لا توجد بيانات كافية</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filtered.map(r => {

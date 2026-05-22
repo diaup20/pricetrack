@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ReportForm } from '../components/ReportForm';
 import { Link } from 'react-router-dom';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 export function MyReports() {
   const { user } = useAuth();
@@ -87,6 +88,20 @@ export function MyReports() {
 
   const filteredReports = reports.filter(r => filter === 'all' || r.status === filter);
 
+  const statusCounts = {
+    new: reports.filter(r => r.status === 'new').length,
+    review: reports.filter(r => r.status === 'review').length,
+    resolved: reports.filter(r => r.status === 'resolved').length,
+    rejected: reports.filter(r => r.status === 'rejected').length,
+  };
+
+  const chartData = [
+    { name: 'جديد', value: statusCounts.new, color: '#3b82f6' },
+    { name: 'قيد المراجعة', value: statusCounts.review, color: '#f59e0b' },
+    { name: 'تم المعاينة', value: statusCounts.resolved, color: '#10b981' },
+    { name: 'مرفوض', value: statusCounts.rejected, color: '#ef4444' },
+  ].filter(item => item.value > 0);
+
   const getStatusColor = (status: ReportStatus) => {
     switch (status) {
       case 'new': return 'text-blue-500 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20';
@@ -149,6 +164,94 @@ export function MyReports() {
             <ChevronRight size={20} className="text-neutral-300" />
           </button>
         </div>
+
+        {/* Charts Panel */}
+        {reports.length > 0 && (
+          <div className="px-1">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-[32px] p-6 shadow-sm flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm font-black text-neutral-900 dark:text-white">إحصائيات بلاغاتك</h3>
+                <p className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">توزيع البلاغات حسب الحالة الحالية</p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 h-48">
+                {/* Recharts Pie Chart Container */}
+                <div className="w-[50%] h-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-neutral-900 dark:bg-neutral-800 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-lg border border-white/10 flex flex-col gap-0.5 z-[100]">
+                                <span className="opacity-90">{data.name}</span>
+                                <span className="font-mono text-primary-400">{data.value} بلاغ</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Text inside Donut Pie Chart */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
+                    <span className="text-2xl font-black text-neutral-900 dark:text-white leading-none">
+                      {reports.length}
+                    </span>
+                    <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 mt-1">
+                      إجمالي البلاغات
+                    </span>
+                  </div>
+                </div>
+
+                {/* Legend List */}
+                <div className="w-[50%] flex flex-col gap-1.5 justify-center">
+                  {[
+                    { name: 'جديد', count: statusCounts.new, color: '#3b82f6', bg: 'bg-blue-500/10 text-blue-500' },
+                    { name: 'قيد المراجعة', count: statusCounts.review, color: '#f59e0b', bg: 'bg-amber-500/10 text-amber-500' },
+                    { name: 'تم المعاينة', count: statusCounts.resolved, color: '#10b981', bg: 'bg-emerald-500/10 text-emerald-500' },
+                    { name: 'مرفوض', count: statusCounts.rejected, color: '#ef4444', bg: 'bg-red-500/10 text-red-500' }
+                  ].map((legendItem) => {
+                    const percentage = reports.length > 0 ? ((legendItem.count / reports.length) * 100).toFixed(0) : '0';
+                    return (
+                      <div key={legendItem.name} className="flex items-center justify-between gap-1 p-1 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors">
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: legendItem.color }} />
+                          <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 truncate">
+                            {legendItem.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded", legendItem.bg)}>
+                            {legendItem.count}
+                          </span>
+                          <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500">
+                            {percentage}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide px-1">

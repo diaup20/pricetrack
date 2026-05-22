@@ -47,12 +47,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubSections = onSnapshot(collection(db, 'sections'), 
-      (s) => setSections(s.docs.map(d => ({ id: d.id, ...d.data() } as Section)).sort((a,b) => (a.order || 0) - (b.order || 0))),
+      (s) => setSections(s.docs.map(d => ({ id: d.id, ...d.data() } as Section)).sort((a,b) => {
+        const orderA = a.order !== undefined && a.order !== null ? Number(a.order) : 9999;
+        const orderB = b.order !== undefined && b.order !== null ? Number(b.order) : 9999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name, 'ar');
+      })),
       (e) => handleFirestoreError(e, OperationType.LIST, 'sections')
     );
 
     const unsubCategories = onSnapshot(collection(db, 'categories'), 
-      (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() } as Category))),
+      (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() } as Category)).sort((a,b) => {
+        const orderA = a.order !== undefined && a.order !== null ? Number(a.order) : 9999;
+        const orderB = b.order !== undefined && b.order !== null ? Number(b.order) : 9999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name, 'ar');
+      })),
       (e) => handleFirestoreError(e, OperationType.LIST, 'categories')
     );
 
