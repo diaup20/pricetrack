@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import { Layout } from '../components/Layout';
 import { ProductCard } from '../components/ProductCard';
 import { ProductListItem } from '../components/ProductListItem';
-import { ArrowRight, Filter, LayoutGrid, List } from 'lucide-react';
+import { ArrowRight, Filter, LayoutGrid, List, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -20,13 +20,27 @@ export function CategoryProducts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [selectedPackage, setSelectedPackage] = useState<string>('all');
+  const [priceMin, setPriceMin] = useState<number>(0);
+  const [priceMax, setPriceMax] = useState<number | null>(null);
+
+  const highestPriceLimit = useMemo(() => {
+    if (rawProducts.length === 0) return 50000;
+    const maxVal = Math.max(...rawProducts.map(p => p.retailPrice || 0));
+    return maxVal > 0 ? Math.ceil(maxVal / 100) * 100 : 50000;
+  }, [rawProducts]);
 
   // Filter products based on selections
   const filteredProducts = rawProducts.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const pName = (p.name || '').toLowerCase();
+    const matchesSearch = pName.includes(searchQuery.toLowerCase());
     const matchesBrand = selectedBrand === 'all' || p.brandId === selectedBrand;
     const matchesPackage = selectedPackage === 'all' || p.packageId === selectedPackage;
-    return matchesSearch && matchesBrand && matchesPackage;
+    
+    const price = p.retailPrice || 0;
+    const matchesMinPrice = priceMin === 0 || price >= priceMin;
+    const matchesMaxPrice = priceMax === null || price <= priceMax;
+
+    return matchesSearch && matchesBrand && matchesPackage && matchesMinPrice && matchesMaxPrice;
   });
 
   // Get only relevant brands and packages for this category
@@ -148,6 +162,76 @@ export function CategoryProducts() {
                 </div>
               </div>
             )}
+
+            {/* Price Filter */}
+            <div className="flex flex-col gap-2 bg-neutral-50 dark:bg-neutral-800/40 p-4 rounded-2xl border border-neutral-100 dark:border-white/5 shadow-inner">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Coins size={12} className="text-primary-500 animate-pulse" /> تصفية حسب السعر (ريال يمني)
+                </span>
+                {(priceMin > 0 || priceMax !== null) && (
+                  <button 
+                    onClick={() => { setPriceMin(0); setPriceMax(null); }}
+                    className="text-[9px] font-black text-red-500 hover:text-red-100 transition-colors bg-red-50 dark:bg-red-500/10 px-2 py-1 rounded-lg"
+                  >
+                    إلغاء تصفية السعر
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-neutral-600 dark:text-neutral-400 pr-1">
+                    <span>الحد الأقصى للمؤشر:</span>
+                    <span className="text-primary-500 font-mono">{(priceMax !== null ? priceMax : highestPriceLimit).toLocaleString('en-US')} ر.ي.</span>
+                  </div>
+                  <input 
+                    type="range"
+                    min="0"
+                    max={highestPriceLimit}
+                    step={Math.ceil(highestPriceLimit / 50) || 500}
+                    value={priceMax !== null ? priceMax : highestPriceLimit}
+                    onChange={(e) => setPriceMax(Number(e.target.value))}
+                    className="w-full accent-primary-500 h-1.5 bg-neutral-200 dark:bg-neutral-850 rounded-lg cursor-pointer"
+                  />
+                  <div className="flex justify-between items-center text-[9px] text-neutral-400 mt-0.5">
+                    <span>0 ر.ي.</span>
+                    <span>{highestPriceLimit.toLocaleString('en-US')} ر.ي.</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pr-1">من (الأدنى)</span>
+                    <input 
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={priceMin === 0 ? '' : priceMin}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPriceMin(val === '' ? 0 : Math.max(0, Number(val)));
+                      }}
+                      className="w-full bg-white dark:bg-neutral-950 border border-neutral-150 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-inner"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pr-1">إلى (الأقصى)</span>
+                    <input 
+                      type="number"
+                      min="0"
+                      placeholder={highestPriceLimit.toString()}
+                      value={priceMax === null ? '' : priceMax}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPriceMax(val === '' ? null : Math.max(0, Number(val)));
+                      }}
+                      className="w-full bg-white dark:bg-neutral-950 border border-neutral-150 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-inner"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-between px-1">
@@ -155,12 +239,14 @@ export function CategoryProducts() {
                 <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
                 <p className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">{filteredProducts.length.toLocaleString('en-US')} منتج متوفر</p>
               </div>
-              {(selectedBrand !== 'all' || selectedPackage !== 'all' || searchQuery) && (
+              {(selectedBrand !== 'all' || selectedPackage !== 'all' || searchQuery || priceMin > 0 || priceMax !== null) && (
                 <button 
                   onClick={() => {
                     setSelectedBrand('all');
                     setSelectedPackage('all');
                     setSearchQuery('');
+                    setPriceMin(0);
+                    setPriceMax(null);
                   }}
                   className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
                 >

@@ -35,7 +35,8 @@ export function Dashboard() {
   // Filtered Products
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const pName = (p.name || '').toLowerCase();
+      const matchesSearch = pName.includes(searchQuery.toLowerCase());
       
       // Get category for this product to check its section
       const productCategory = categories.find(c => c.id === p.categoryId);

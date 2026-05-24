@@ -115,7 +115,14 @@ export function Profile() {
         try {
           await reauthenticateWithCredential(user, credential);
         } catch (reAuthErr: any) {
-          if (reAuthErr.code === 'auth/wrong-password') {
+          const reCode = reAuthErr.code || '';
+          const reMessage = reAuthErr.message || '';
+          if (
+            reCode === 'auth/wrong-password' || 
+            reCode === 'auth/invalid-credential' || 
+            reMessage.includes('auth/invalid-credential') ||
+            reMessage.includes('invalid-credential')
+          ) {
             setError('كلمة المرور الحالية غير صحيحة');
             setUpdateLoading(false);
             return;

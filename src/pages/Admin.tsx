@@ -406,10 +406,12 @@ function UserManager() {
     return () => { unsubAdmins(); unsubUsers(); };
   }, []);
 
-  const filteredUsers = users.filter(u => 
-    u.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    const dName = (u.displayName || '').toLowerCase();
+    const dEmail = (u.email || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
+    return dName.includes(query) || dEmail.includes(query);
+  });
 
   const toggleAdmin = async (userId: string, email: string, currentIsAdmin: boolean) => {
     if (email === 'abdsharki20@gmail.com') return alert('لا يمكن تعديل صلاحيات المدير الرئيسي!');

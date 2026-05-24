@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { Layout } from '../components/Layout';
 import { ProductCard } from '../components/ProductCard';
-import { Search as SearchIcon, X, Filter, SlidersHorizontal, PackageSearch, LayoutGrid, Tag, ChevronDown } from 'lucide-react';
+import { Search as SearchIcon, X, Filter, SlidersHorizontal, PackageSearch, LayoutGrid, Tag, ChevronDown, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -12,15 +12,31 @@ export function Search() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [priceMin, setPriceMin] = useState<number>(0);
+  const [priceMax, setPriceMax] = useState<number | null>(null);
+
+  const highestPriceLimit = useMemo(() => {
+    if (products.length === 0) return 50000;
+    const maxVal = Math.max(...products.map(p => p.retailPrice || 0));
+    return maxVal > 0 ? Math.ceil(maxVal / 100) * 100 : 50000;
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const pName = (p.name || '').toLowerCase();
+      const pDesc = (p.description || '').toLowerCase();
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || pName.includes(q) || pDesc.includes(q);
       const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
       const matchesBrand = selectedBrand === 'all' || p.brandId === selectedBrand;
-      return matchesSearch && matchesCategory && matchesBrand;
+      
+      const price = p.retailPrice || 0;
+      const matchesMinPrice = priceMin === 0 || price >= priceMin;
+      const matchesMaxPrice = priceMax === null || price <= priceMax;
+
+      return matchesSearch && matchesCategory && matchesBrand && matchesMinPrice && matchesMaxPrice;
     });
-  }, [products, searchQuery, selectedCategory, selectedBrand]);
+  }, [products, searchQuery, selectedCategory, selectedBrand, priceMin, priceMax]);
 
   return (
     <Layout>
@@ -87,6 +103,8 @@ export function Search() {
                         setSelectedCategory('all');
                         setSelectedBrand('all');
                         setSearchQuery('');
+                        setPriceMin(0);
+                        setPriceMax(null);
                       }}
                       className="text-[10px] font-black text-primary-500 hover:text-primary-600 uppercase tracking-widest transition-colors bg-primary-50 dark:bg-primary-500/10 px-3 py-1.5 rounded-xl"
                     >
@@ -94,7 +112,7 @@ export function Search() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <label className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest px-3 flex items-center gap-2">
                         <LayoutGrid size={12} /> تصفية حسب القسم
@@ -146,6 +164,65 @@ export function Search() {
                         </div>
                       </div>
                     </div>
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest px-3 flex items-center gap-2">
+                        <Coins size={12} /> تصفية حسب السعر (ريال يمني)
+                      </label>
+                      <div className="bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-100 dark:border-white/5 rounded-2xl p-4 space-y-4">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-neutral-600 dark:text-neutral-300">
+                            <span>الحد الأقصى:</span>
+                            <span className="text-primary-500 font-mono">{(priceMax !== null ? priceMax : highestPriceLimit).toLocaleString('en-US')} ر.ي.</span>
+                          </div>
+                          <input 
+                            type="range"
+                            min="0"
+                            max={highestPriceLimit}
+                            step={Math.ceil(highestPriceLimit / 50) || 500}
+                            value={priceMax !== null ? priceMax : highestPriceLimit}
+                            onChange={(e) => setPriceMax(Number(e.target.value))}
+                            className="w-full accent-primary-500 h-1.5 bg-neutral-200 dark:bg-neutral-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pr-1">الأدنى</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={priceMin === 0 ? '' : priceMin}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setPriceMin(val === '' ? 0 : Math.max(0, Number(val)));
+                              }}
+                              className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 shadow-inner"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-wider pr-1">الأقصى</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              placeholder={highestPriceLimit.toString()}
+                              value={priceMax === null ? '' : priceMax}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setPriceMax(val === '' ? null : Math.max(0, Number(val)));
+                              }}
+                              className="w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 shadow-inner"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[9px] font-medium text-neutral-400">
+                          <span>0 ر.ي.</span>
+                          <span>{highestPriceLimit.toLocaleString('en-US')} ر.ي.</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -156,7 +233,7 @@ export function Search() {
         <section className="flex flex-col gap-6">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-lg font-display font-black text-neutral-800 dark:text-neutral-100">
-              {searchQuery || selectedCategory !== 'all' || selectedBrand !== 'all' ? (
+              {searchQuery || selectedCategory !== 'all' || selectedBrand !== 'all' || priceMin > 0 || priceMax !== null ? (
                 <span>نتائج البحث <span className="text-primary-500">({filteredProducts.length})</span></span>
               ) : (
                 <span>اقتراحات <span className="text-primary-500">لك</span></span>
@@ -195,6 +272,8 @@ export function Search() {
                     setSearchQuery('');
                     setSelectedCategory('all');
                     setSelectedBrand('all');
+                    setPriceMin(0);
+                    setPriceMax(null);
                   }}
                   className="mt-2 text-xs font-black text-primary-500 bg-primary-50 dark:bg-primary-500/10 px-8 py-3.5 rounded-2xl hover:bg-neutral-100 transition-all border border-primary-100 dark:border-primary-500/20"
               >
