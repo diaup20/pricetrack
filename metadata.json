@@ -1,6 +1,6 @@
 {
   "name": "كم سعره - أسعار السلع والصرف",
   "description": "تطبيق متكامل لمتابعة أسعار السلع الأساسية (وكيل، جملة، تجزئة) وأسعار الصرف في اليمن مع لوحة تحكم ذكية.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

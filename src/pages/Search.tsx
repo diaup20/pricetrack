@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { Layout } from '../components/Layout';
 import { ProductCard } from '../components/ProductCard';
-import { Search as SearchIcon, X, Filter, SlidersHorizontal, PackageSearch, LayoutGrid, Tag, ChevronDown, Coins } from 'lucide-react';
+import { Search as SearchIcon, X, Filter, SlidersHorizontal, PackageSearch, LayoutGrid, Tag, ChevronDown, Coins, Mic, MicOff, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -14,6 +14,132 @@ export function Search() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [priceMin, setPriceMin] = useState<number>(0);
   const [priceMax, setPriceMax] = useState<number | null>(null);
+
+  // Voice Search States
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Auto-suggestions States & Refs
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [focusedSuggestionIndex, setFocusedSuggestionIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase().trim();
+    const matches: string[] = [];
+    for (const p of products) {
+      const name = p.name || '';
+      if (name.toLowerCase().includes(query) && !matches.includes(name)) {
+        matches.push(name);
+        if (matches.length >= 6) break; // Limit to up to 6 matches
+      }
+    }
+    return matches;
+  }, [products, searchQuery]);
+
+  // Click outside to close auto-suggestions
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setShowSuggestions(true);
+      setFocusedSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setShowSuggestions(true);
+      setFocusedSuggestionIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter') {
+      if (focusedSuggestionIndex >= 0 && focusedSuggestionIndex < suggestions.length) {
+        e.preventDefault();
+        setSearchQuery(suggestions[focusedSuggestionIndex]);
+        setShowSuggestions(false);
+      } else {
+        setShowSuggestions(false);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
+  const toggleListening = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      setVoiceError('البحث الصوتي غير مدعوم في متصفحك الحالي. يرجى استخدام متصفح يدعم هذه الميزة مثل Google Chrome.');
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      return;
+    }
+
+    setVoiceError(null);
+    try {
+      const recognition = new SpeechRec();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'ar-YE'; // Yemeni Arabic dialect recognition
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setSearchQuery(transcript);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          setVoiceError('يرجى السماح بالوصول إلى الميكروفون لاستخدام البحث الصوتي.');
+        } else if (event.error === 'no-speech') {
+          setVoiceError('لم نتمكن من سماعك بوضوح. يرجى المحاولة والتحدث مرة أخرى.');
+        } else {
+          setVoiceError('حدث خطأ أثناء التعرف على الصوت. حاول مرة أخرى.');
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setIsListening(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   const highestPriceLimit = useMemo(() => {
     if (products.length === 0) return 50000;
@@ -63,26 +189,167 @@ export function Search() {
             </button>
           </div>
 
-          <div className="relative group">
+          <div className="relative group" ref={containerRef}>
             <div className="absolute -inset-1 bg-gradient-to-r from-primary-500 to-sky-500 rounded-3xl blur opacity-[0.05] group-focus-within:opacity-10 transition-opacity"></div>
             <input
               type="text"
               autoFocus
               placeholder="عن ماذا تبحث اليوم؟ (اسم المنتج، الوصف...)"
-              className="relative w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-3xl py-5 pr-14 pl-6 shadow-sm focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all text-base font-bold dark:text-white dark:placeholder:text-neutral-600"
+              className="relative w-full bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-3xl py-5 pr-14 pl-28 shadow-sm focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all text-base font-bold dark:text-white dark:placeholder:text-neutral-600"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSuggestions(true);
+                setFocusedSuggestionIndex(-1);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={handleKeyDown}
             />
             <SearchIcon className="absolute right-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary-500 transition-colors" size={24} />
-            {searchQuery && (
+            
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center gap-2 z-10">
+              {searchQuery && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setShowSuggestions(false);
+                  }}
+                  className="text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors bg-neutral-50 dark:bg-neutral-800 p-2 rounded-full"
+                  title="مسح البحث"
+                >
+                  <X size={16} />
+                </button>
+              )}
               <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500 transition-colors bg-neutral-50 dark:bg-neutral-800 p-1.5 rounded-full"
+                type="button"
+                onClick={toggleListening}
+                className={cn(
+                  "p-2.5 rounded-full transition-all flex items-center justify-center relative group",
+                  isListening 
+                    ? "bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/30" 
+                    : "bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20"
+                )}
+                title={isListening ? "جاري الاستماع... اضغط للإيقاف" : "البحث الصوتي"}
               >
-                <X size={18} />
+                {isListening ? (
+                  <>
+                    <MicOff size={18} />
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                  </>
+                ) : (
+                  <Mic size={18} />
+                )}
               </button>
-            )}
+            </div>
+
+            {/* Auto-suggestions Dropdown */}
+            <AnimatePresence>
+              {showSuggestions && suggestions.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.99 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 right-0 z-50 mt-2 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-2xl shadow-xl max-h-72 overflow-y-auto overflow-x-hidden backdrop-blur-xl"
+                >
+                  <div className="p-2 flex flex-col gap-0.5 font-sans">
+                    <div className="px-3 py-1.5 text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest border-b border-neutral-50 dark:border-white/5 mb-1 text-right">
+                      اقتراحات البحث السريعة
+                    </div>
+                    {suggestions.map((suggestion, idx) => {
+                      const isFocused = idx === focusedSuggestionIndex;
+                      return (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onMouseEnter={() => setFocusedSuggestionIndex(idx)}
+                          onClick={() => {
+                            setSearchQuery(suggestion);
+                            setShowSuggestions(false);
+                          }}
+                          className={cn(
+                            "w-full text-right px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-between transition-colors",
+                            isFocused 
+                              ? "bg-primary-50 dark:bg-primary-500/15 text-primary-600 dark:text-primary-400" 
+                              : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <SearchIcon size={14} className="text-neutral-300 dark:text-neutral-600" />
+                            <span>{suggestion}</span>
+                          </div>
+                          
+                          {isFocused && (
+                            <span className="text-[10px] font-black text-primary-500/80 bg-primary-100/50 dark:bg-primary-500/20 px-2 py-0.5 rounded-md font-sans">
+                              تحديد ↵
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
+
+          <AnimatePresence>
+            {isListening && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-500/20 p-4 rounded-2xl flex items-center justify-between shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <Volume2 className="text-red-500 animate-bounce h-5 w-5 relative" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-red-600 dark:text-red-400">جاري الاستماع إليك...</p>
+                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">تحدّث الآن باسم المنتج أو العلامة التجارية لتتم كتابتها تلقائياً.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (recognitionRef.current) recognitionRef.current.stop();
+                    setIsListening(false);
+                  }}
+                  className="text-xs font-black text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10 px-3 py-1.5 rounded-xl transition-colors"
+                >
+                  إيقاف
+                </button>
+              </motion.div>
+            )}
+
+            {voiceError && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                className="bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-500/20 p-4 rounded-2xl flex items-start gap-3"
+              >
+                <MicOff className="text-amber-500 h-5 w-5 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-black text-amber-600 dark:text-amber-400">تنبيه البحث الصوتي</p>
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-relaxed">{voiceError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVoiceError(null)}
+                  className="text-[10px] font-black text-neutral-400 hover:text-neutral-600 dark:hover:text-white"
+                >
+                  إغلاق
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <AnimatePresence>
             {isFilterOpen && (
