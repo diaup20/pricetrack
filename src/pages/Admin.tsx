@@ -46,7 +46,8 @@ import {
   MapPin,
   CheckCircle2,
   AlertCircle,
-  ChevronDown
+  ChevronDown,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, Trend, ProductVariant, Report, ReportStatus, ReportType } from '../types';
@@ -67,8 +68,26 @@ import {
 
 export function Admin() {
   const { user, isAdmin, loading } = useAuth();
-  const { sections, categories, brands, units, packages, products, exchangeRates, reportTypes, governorates, districts } = useData();
+  const { sections, categories, brands, units, packages, products, exchangeRates, reportTypes, governorates, districts, visits = [] } = useData();
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'rates' | 'meta' | 'users' | 'reports'>('overview');
+
+  // Group and count views per Yemen governorate
+  const visitsByGovData = React.useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    visits.forEach(v => {
+      if (v.governorateId) {
+        counts[v.governorateId] = (counts[v.governorateId] || 0) + 1;
+      }
+    });
+
+    return governorates
+      .map(gov => ({
+        id: gov.id,
+        name: gov.name,
+        views: counts[gov.id] || 0
+      }))
+      .sort((a, b) => b.views - a.views);
+  }, [visits, governorates]);
 
   const navigation = [
     { id: 'overview', label: 'نظرة عامة', icon: <LineChart size={18} /> },
@@ -167,12 +186,88 @@ export function Admin() {
         >
           {activeTab === 'overview' && (
             <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatCard label="المنتجات" value={products.length} color="bg-blue-500" icon={<Package size={20} />} trend={products.some(p => p.trend !== 'stable') ? 'up' : 'stable'} />
                 <StatCard label="الأقسام" value={categories.length} color="bg-purple-500" icon={<Tags size={20} />} />
                 <StatCard label="أسعار الصرف" value={exchangeRates.length} color="bg-green-500" icon={<TrendingUp size={20} />} trend="up" />
+                <StatCard label="مشاهدات التطبيق" value={visits.length} color="bg-sky-500" icon={<Eye size={20} />} trend="up" />
                 <StatCard label="تحديثات اليوم" value={products.filter(p => p.trend !== 'stable').length} color="bg-orange-500" icon={<LineChart size={20} />} trend="up" />
                 <ReportStatsCard />
+              </div>
+
+              {/* إحصائيات المشاهدات والزيارات بالتفصيل حسب المحافظة اليمنيّة */}
+              <div className="bg-white dark:bg-neutral-900 p-6 md:p-8 rounded-[32px] border border-neutral-100 dark:border-white/5 shadow-sm flex flex-col gap-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-neutral-50 dark:border-white/5 pb-4">
+                  <div className="space-y-1 text-right">
+                    <h3 className="font-display font-black text-lg text-neutral-900 dark:text-white flex items-center gap-2">
+                      <MapPin size={18} className="text-primary-500" />
+                      إحصائيات المشاهدات حسب المحافظة
+                    </h3>
+                    <p className="text-xs text-neutral-400 font-bold">نسب وتوزيع تفاعل المشاهدين والزوار عبر المحافظات اليمنية</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                    إجمالي المشاهدات: {visits.length} مشاهدة
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                  {/* Chart Visualizer */}
+                  <div className="lg:col-span-3 h-64 bg-neutral-50 dark:bg-neutral-800/20 p-4 rounded-[24px] flex flex-col items-center justify-center border border-neutral-100 dark:border-white/5">
+                    {visits.length === 0 ? (
+                      <div className="text-neutral-400 text-xs font-bold font-sans">
+                        لا توجد بيانات مشاهدات مسجلة للمحافظات بعد.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={visitsByGovData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.3} />
+                          <XAxis dataKey="name" stroke="#9CA3AF" fontSize={10} tickLine={false} />
+                          <YAxis stroke="#9CA3AF" fontSize={10} tickLine={false} width={30} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              direction: 'rtl',
+                              backgroundColor: '#1F2937', 
+                              borderColor: '#374151',
+                              borderRadius: '12px',
+                              color: '#fff',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }} 
+                          />
+                          <Bar dataKey="views" fill="#0EA5E9" name="عدد المشاهدات" radius={[6, 6, 0, 0]} barSize={28} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* List breakdown of Governorates */}
+                  <div className="lg:col-span-2 space-y-2.5 max-h-64 overflow-y-auto pr-1 no-scrollbar">
+                    {visitsByGovData.map((item, idx) => {
+                      const percentage = visits.length > 0 ? Math.round((item.views / visits.length) * 100) : 0;
+                      return (
+                        <div key={item.id} className="flex items-center justify-between p-3.5 bg-neutral-50 dark:bg-neutral-800/30 rounded-2xl border border-neutral-100/50 dark:border-white/5 text-xs text-right">
+                          <div className="flex items-center gap-3">
+                            <span className="w-6 h-6 rounded-lg bg-primary-550/10 text-primary-600 dark:text-primary-400 flex items-center justify-center font-black text-[10px]">
+                              {idx + 1}
+                            </span>
+                            <span className="font-black text-neutral-800 dark:text-neutral-200">{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-accent font-black text-neutral-900 dark:text-white">{item.views} <span className="text-[10px] text-neutral-400 font-bold">مشاهدة</span></span>
+                            <div className="text-right w-12 font-bold text-xs text-primary-500 dark:text-primary-400">
+                              %{percentage}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {visitsByGovData.length === 0 && (
+                      <div className="text-center py-6 text-xs text-neutral-400 font-bold">
+                        لم يتم تسجيل أي زيارات حتى الآن
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -563,6 +658,7 @@ function ProductManager({ sections, products, categories, brands, units, package
       const exportData = products.map((p: any) => ({
         'اسم المنتج': t(p.name || ''),
         'الوصف': t(p.description || ''),
+        'بلد المنشأ': t(p.origin || ''),
         'القسم': t(categories.find((c: any) => c.id === p.categoryId)?.name || ''),
         'العلامة التجارية': t(brands.find((b: any) => b.id === p.brandId)?.name || ''),
         'وحدة القياس': t(units.find((u: any) => u.id === p.unitId)?.name || ''),
@@ -938,6 +1034,11 @@ function ProductManager({ sections, products, categories, brands, units, package
                           {brand.name}
                         </span>
                       )}
+                      {p.origin && (
+                        <span className="text-[8px] font-black uppercase text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded-md truncate max-w-[80px]" title="بلد المنشأ">
+                          🌍 {p.origin}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1021,6 +1122,7 @@ function ProductForm({ onClose, initialData, sections, categories, brands, units
     previousRetailPrice: initialData?.previousRetailPrice || initialData?.retailPrice || 0,
     imageUrl: initialData?.imageUrl || '',
     description: initialData?.description || '',
+    origin: initialData?.origin || '',
     trend: initialData?.trend || 'stable' as Trend,
     variants: (initialData?.variants || [] as ProductVariant[]).map((v: any) => ({
       packageId: v.packageId || '',
@@ -1123,8 +1225,32 @@ function ProductForm({ onClose, initialData, sections, categories, brands, units
 
     if (initialData) {
       await updateDoc(doc(db, 'products', initialData.id), data);
+      if (retailPrice !== initialData.retailPrice) {
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            title: 'تعديل سعر السلعة',
+            body: `تم تحديث سعر السلعة "${formData.name}" ليصبح ${retailPrice} ريال (السعر السابق: ${initialData.retailPrice} ريال).`,
+            type: 'price_update',
+            referenceId: initialData.id,
+            createdAt: serverTimestamp()
+          });
+        } catch (nErr) {
+          console.error("Error creating price update notification:", nErr);
+        }
+      }
     } else {
-      await addDoc(collection(db, 'products'), data);
+      const pRef = await addDoc(collection(db, 'products'), data);
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          title: 'إضافة منتج جديد',
+          body: `تم تسجيل منتج جديد باسم "${formData.name}" بسعر مستهلك قيمته ${retailPrice} ريال.`,
+          type: 'new_product',
+          referenceId: pRef.id,
+          createdAt: serverTimestamp()
+        });
+      } catch (nErr) {
+        console.error("Error creating new product notification:", nErr);
+      }
     }
     onClose();
   };
@@ -1187,6 +1313,7 @@ function ProductForm({ onClose, initialData, sections, categories, brands, units
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Select label="العبوة الأساسية" value={formData.packageId} options={packages} onChange={(e:any) => setFormData({...formData, packageId: e.target.value})} required />
+                    <Input label="بلد المنشأ" value={formData.origin} onChange={(e:any) => setFormData({...formData, origin: e.target.value})} placeholder="مثال: اليمن، الصين، تركيا" />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -1582,7 +1709,20 @@ function MetaManager({ sections, categories, brands, units, packages, reportType
     if (editingItem) {
       await updateDoc(doc(db, activeMeta, editingItem.id), data);
     } else {
-      await addDoc(collection(db, activeMeta), data);
+      const docRef = await addDoc(collection(db, activeMeta), data);
+      if (activeMeta === 'categories') {
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            title: 'إضافة قسم جديد',
+            body: `تمت إضافة قسم جديد باسم "${data.name}"`,
+            type: 'new_category',
+            referenceId: docRef.id,
+            createdAt: serverTimestamp()
+          });
+        } catch (nErr) {
+          console.error("Error creating new category notification:", nErr);
+        }
+      }
     }
     setShowForm(false);
     setEditingItem(null);

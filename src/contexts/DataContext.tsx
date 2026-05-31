@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Category, Product, ExchangeRate, Unit, Package, Brand, ReportMeta, Governorate, District, Section } from '../types';
+import { Category, Product, ExchangeRate, Unit, Package, Brand, ReportMeta, Governorate, District, Section, Review, AppVisit, AppNotification } from '../types';
 import { OperationType, handleFirestoreError } from '../lib/utils';
 
 interface DataContextType {
@@ -15,6 +15,9 @@ interface DataContextType {
   reportTypes: ReportMeta[];
   governorates: Governorate[];
   districts: District[];
+  reviews: Review[];
+  visits: AppVisit[];
+  notifications: AppNotification[];
   loading: boolean;
 }
 
@@ -29,6 +32,9 @@ const DataContext = createContext<DataContextType>({
   reportTypes: [],
   governorates: [],
   districts: [],
+  reviews: [],
+  visits: [],
+  notifications: [],
   loading: true,
 });
 
@@ -43,6 +49,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [reportTypes, setReportTypes] = useState<ReportMeta[]>([]);
   const [governorates, setGovernorates] = useState<Governorate[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [visits, setVisits] = useState<AppVisit[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -106,6 +115,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       (e) => handleFirestoreError(e, OperationType.LIST, 'districts')
     );
 
+    const unsubReviews = onSnapshot(collection(db, 'reviews'), 
+      (s) => setReviews(s.docs.map(d => ({ id: d.id, ...d.data() } as Review))),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'reviews')
+    );
+
+    const unsubVisits = onSnapshot(collection(db, 'visits'), 
+      (s) => setVisits(s.docs.map(d => ({ id: d.id, ...d.data() } as AppVisit))),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'visits')
+    );
+
+    const unsubNotifications = onSnapshot(collection(db, 'notifications'), 
+      (s) => setNotifications(s.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification)).sort((a, b) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      })),
+      (e) => handleFirestoreError(e, OperationType.LIST, 'notifications')
+    );
+
     setLoading(false);
 
     return () => {
@@ -119,11 +147,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       unsubReportTypes();
       unsubGovernorates();
       unsubDistricts();
+      unsubReviews();
+      unsubVisits();
+      unsubNotifications();
     };
   }, []);
 
   return (
-    <DataContext.Provider value={{ sections, categories, products, exchangeRates, units, packages, brands, reportTypes, governorates, districts, loading }}>
+    <DataContext.Provider value={{ sections, categories, products, exchangeRates, units, packages, brands, reportTypes, governorates, districts, reviews, visits, notifications, loading }}>
       {children}
     </DataContext.Provider>
   );

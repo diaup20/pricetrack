@@ -185,7 +185,7 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
             {/* Form Content */}
             {!user ? (
-              <div className="flex-1 p-8 flex flex-col items-center justify-center text-center gap-6">
+              <div className="flex-1 p-8 flex flex-col items-center justify-center text-center gap-5">
                  <div className="w-20 h-20 bg-primary-100 dark:bg-primary-950/30 text-primary-600 rounded-[32px] flex items-center justify-center shadow-inner">
                     <User size={32} />
                  </div>
@@ -205,6 +205,22 @@ export function ReportForm({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                     <LogIn size={18} />
                     تسجيل الدخول الآن
                  </button>
+
+                 <div className="w-full flex items-center justify-center gap-2 py-1 text-neutral-400 dark:text-neutral-500 text-[10px] font-bold">
+                   <span className="h-[1px] bg-neutral-100 dark:bg-white/5 flex-1" />
+                   <span>أو أرسل بلاغك مباشرة</span>
+                   <span className="h-[1px] bg-neutral-100 dark:bg-white/5 flex-1" />
+                 </div>
+
+                 <a 
+                  href="https://wa.me/967775511113"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full border-2 border-emerald-500/20 dark:border-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all"
+                 >
+                    <Phone size={16} className="text-emerald-500" />
+                    تقديم البلاغ عبر واتساب مباشرة
+                 </a>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">

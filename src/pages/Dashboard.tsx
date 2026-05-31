@@ -12,7 +12,8 @@ import {
   AlertTriangle,
   Mic,
   MicOff,
-  Volume2
+  Volume2,
+  Phone
 } from 'lucide-react';
 import { ReportForm } from '../components/ReportForm';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,7 +28,19 @@ export function Dashboard() {
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
+  const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
+  // Get unique countries of origin from products
+  const origins = useMemo(() => {
+    const originSet = new Set<string>();
+    products.forEach((p) => {
+      if (p.origin && p.origin.trim()) {
+        originSet.add(p.origin.trim());
+      }
+    });
+    return Array.from(originSet).sort();
+  }, [products]);
 
   // Voice Search States
   const [isListening, setIsListening] = useState(false);
@@ -165,7 +178,10 @@ export function Dashboard() {
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const pName = (p.name || '').toLowerCase();
-      const matchesSearch = pName.includes(searchQuery.toLowerCase());
+      const pDesc = (p.description || '').toLowerCase();
+      const pOrigin = (p.origin || '').toLowerCase();
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = pName.includes(q) || pDesc.includes(q) || pOrigin.includes(q);
       
       // Get category for this product to check its section
       const productCategory = categories.find(c => c.id === p.categoryId);
@@ -173,9 +189,10 @@ export function Dashboard() {
       
       const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
       const matchesBrand = selectedBrand === 'all' || p.brandId === selectedBrand;
-      return matchesSearch && matchesSection && matchesCategory && matchesBrand;
+      const matchesOrigin = selectedOrigin === 'all' || p.origin === selectedOrigin;
+      return matchesSearch && matchesSection && matchesCategory && matchesBrand && matchesOrigin;
     });
-  }, [products, categories, searchQuery, selectedSection, selectedCategory, selectedBrand]);
+  }, [products, categories, searchQuery, selectedSection, selectedCategory, selectedBrand, selectedOrigin]);
 
   return (
     <Layout>
@@ -468,7 +485,7 @@ export function Dashboard() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-3xl"
             >
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest px-1">القسم الفرعي</label>
                   <div className="relative">
@@ -494,6 +511,23 @@ export function Dashboard() {
                     >
                       <option value="all">الكل</option>
                       {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest px-1">بلد المنشأ</label>
+                  <div className="relative">
+                    <select 
+                      value={selectedOrigin}
+                      onChange={e => setSelectedOrigin(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-800 rounded-xl px-4 py-3 text-xs font-bold appearance-none dark:text-white border-none"
+                    >
+                      <option value="all">الكل</option>
+                      {origins.map(orig => (
+                        <option key={orig} value={orig}>{orig}</option>
+                      ))}
                     </select>
                     <ChevronDown size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
                   </div>

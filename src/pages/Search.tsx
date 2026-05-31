@@ -11,9 +11,21 @@ export function Search() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
+  const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [priceMin, setPriceMin] = useState<number>(0);
   const [priceMax, setPriceMax] = useState<number | null>(null);
+
+  // Get unique countries of origin from products
+  const origins = useMemo(() => {
+    const originSet = new Set<string>();
+    products.forEach((p) => {
+      if (p.origin && p.origin.trim()) {
+        originSet.add(p.origin.trim());
+      }
+    });
+    return Array.from(originSet).sort();
+  }, [products]);
 
   // Voice Search States
   const [isListening, setIsListening] = useState(false);
@@ -151,18 +163,20 @@ export function Search() {
     return products.filter(p => {
       const pName = (p.name || '').toLowerCase();
       const pDesc = (p.description || '').toLowerCase();
+      const pOrigin = (p.origin || '').toLowerCase();
       const q = searchQuery.toLowerCase();
-      const matchesSearch = !searchQuery || pName.includes(q) || pDesc.includes(q);
+      const matchesSearch = !searchQuery || pName.includes(q) || pDesc.includes(q) || pOrigin.includes(q);
       const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
       const matchesBrand = selectedBrand === 'all' || p.brandId === selectedBrand;
+      const matchesOrigin = selectedOrigin === 'all' || p.origin === selectedOrigin;
       
       const price = p.retailPrice || 0;
       const matchesMinPrice = priceMin === 0 || price >= priceMin;
       const matchesMaxPrice = priceMax === null || price <= priceMax;
 
-      return matchesSearch && matchesCategory && matchesBrand && matchesMinPrice && matchesMaxPrice;
+      return matchesSearch && matchesCategory && matchesBrand && matchesOrigin && matchesMinPrice && matchesMaxPrice;
     });
-  }, [products, searchQuery, selectedCategory, selectedBrand, priceMin, priceMax]);
+  }, [products, searchQuery, selectedCategory, selectedBrand, selectedOrigin, priceMin, priceMax]);
 
   return (
     <Layout>
@@ -369,6 +383,7 @@ export function Search() {
                       onClick={() => {
                         setSelectedCategory('all');
                         setSelectedBrand('all');
+                        setSelectedOrigin('all');
                         setSearchQuery('');
                         setPriceMin(0);
                         setPriceMax(null);
@@ -379,7 +394,7 @@ export function Search() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-3">
                       <label className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest px-3 flex items-center gap-2">
                         <LayoutGrid size={12} /> تصفية حسب القسم
@@ -425,6 +440,32 @@ export function Search() {
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400 group-focus-within/select:text-primary-500 transition-colors">
                           <Tag size={20} />
+                        </div>
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-300">
+                          <ChevronDown size={18} strokeWidth={3} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest px-3 flex items-center gap-2 font-sans">
+                        <span role="img" aria-label="origin">🌍</span> تصفية حسب بلد المنشأ
+                      </label>
+                      <div className="relative group/select">
+                        <select
+                          value={selectedOrigin}
+                          onChange={(e) => setSelectedOrigin(e.target.value)}
+                          className="w-full bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-white/5 rounded-2xl px-5 py-4 text-sm font-bold appearance-none focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all text-neutral-800 dark:text-white cursor-pointer pr-12 pl-12"
+                        >
+                          <option value="all">جميع بلدان المنشأ</option>
+                          {origins.map(orig => (
+                            <option key={orig} value={orig}>
+                              {orig}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400 group-focus-within/select:text-primary-500 transition-colors">
+                          <span role="img" aria-label="origin" className="text-sm">🌍</span>
                         </div>
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-300">
                           <ChevronDown size={18} strokeWidth={3} />

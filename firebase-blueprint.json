@@ -66,6 +66,7 @@
         "trend": { "type": "string", "enum": ["up", "down", "stable"] },
         "imageUrl": { "type": "string" },
         "description": { "type": "string" },
+        "origin": { "type": "string" },
         "lastUpdatedAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -106,6 +107,47 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["reporterName", "reporterPhone", "reportType", "itemName", "governorate", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User feedback and star rating for products",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "userId", "userName", "rating"]
+    },
+    "AppVisit": {
+      "title": "AppVisit",
+      "description": "App access log with user governorate",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "governorateId": { "type": "string" },
+        "governorateName": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["governorateId", "governorateName"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or admin alert triggered on product additions or price modifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "type"]
     }
   },
   "firestore": {
@@ -120,6 +162,9 @@
     "/reports/{reportId}": { "schema": "Report", "description": "User complaints and reports" },
     "/report_types/{typeId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }, "description": "Configurable report types" },
     "/governorates/{govId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }, "description": "Yemen governorates" },
-    "/districts/{distId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "governorateId": { "type": "string" } }, "required": ["name", "governorateId"] }, "description": "Districts within governorates" }
+    "/districts/{distId}": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "governorateId": { "type": "string" } }, "required": ["name", "governorateId"] }, "description": "Districts within governorates" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "User reviews and ratings for products" },
+    "/visits/{visitId}": { "schema": "AppVisit", "description": "App access log with user governorate" },
+    "/notifications/{notificationId}": { "schema": "Notification", "description": "System or admin alert triggers" }
   }
 }

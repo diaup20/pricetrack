@@ -120,5 +120,47 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isVerifiedAdmin();
     }
+
+    function isValidReview(data) {
+      return data.productId is string && data.productId.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             (data.comment == null || (data.comment is string && data.comment.size() <= 1000));
+    }
+
+    // Reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidReview(incoming());
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidReview(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'comment', 'updatedAt']);
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isVerifiedAdmin());
+    }
+
+    function isValidVisit(data) {
+      return data.governorateId is string && data.governorateId.size() <= 64 &&
+             data.governorateName is string && data.governorateName.size() <= 100;
+    }
+
+    // Visits / App views
+    match /visits/{visitId} {
+      allow read: if true;
+      allow create: if isValidVisit(incoming());
+      allow update, delete: if isVerifiedAdmin();
+    }
+
+    function isValidNotification(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.body is string && data.body.size() <= 500 &&
+             data.type is string && data.type.size() <= 50 &&
+             (data.referenceId == null || (data.referenceId is string && data.referenceId.size() <= 128));
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create: if isVerifiedAdmin() && isValidNotification(incoming());
+      allow update, delete: if isVerifiedAdmin();
+    }
   }
 }

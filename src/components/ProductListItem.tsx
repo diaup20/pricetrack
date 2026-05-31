@@ -57,6 +57,11 @@ export function ProductListItem({ product }: ProductListItemProps) {
               <Tag size={10} className="opacity-70" /> {brand.name}
             </span>
           )}
+          {product.origin && (
+            <span className="text-[11px] bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-lg text-amber-600 dark:text-amber-400 font-bold border border-amber-100/50 dark:border-amber-500/20 flex items-center gap-1.5 shadow-sm">
+              <span role="img" aria-label="origin" className="text-[11px]">🌍</span> {product.origin}
+            </span>
+          )}
         </div>
       </div>
 

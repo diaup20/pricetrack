@@ -4,7 +4,8 @@ import { useData } from '../contexts/DataContext';
 import { Product, Trend, ProductVariant } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { TrendIndicator } from './TrendIndicator';
-import { Calendar, Tag, Package as PackageIcon, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Calendar, Tag, Package as PackageIcon, ChevronDown, AlertTriangle, Star, MessageSquare, Share2, Check } from 'lucide-react';
+import { ProductReviews } from './ProductReviews';
 import { ReportForm } from './ReportForm';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -15,9 +16,25 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { sections, categories, brands, units, packages, exchangeRates } = useData();
+  const { sections, categories, brands, units, packages, exchangeRates, reviews } = useData();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(-1); 
   const [showReportForm, setShowReportForm] = useState(false);
+  const [showReviews, setShowReviews] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const productReviews = React.useMemo(() => {
+    return reviews.filter(r => r.productId === product.id);
+  }, [reviews, product.id]);
+
+  const ratingStats = React.useMemo(() => {
+    const total = productReviews.length;
+    if (total === 0) return { average: 0, count: 0 };
+    const sum = productReviews.reduce((acc, r) => acc + r.rating, 0);
+    return {
+      average: Math.round((sum / total) * 10) / 10,
+      count: total
+    };
+  }, [productReviews]);
   
   const category = categories.find((c: any) => c.id === product.categoryId);
   const section = sections.find((s: any) => s.id === category?.sectionId);
@@ -44,6 +61,38 @@ export function ProductCard({ product }: ProductCardProps) {
 
   const pack = packages.find((p: any) => p.id === currentPrices.packageId);
 
+  const handleShare = async () => {
+    const shareTitle = `تطبيق كم سعره - تفاصيل سعر ${product.name}`;
+    const shareText = `🔍 تفاصيل سعر المنتج: *${product.name}*
+${product.origin ? `🌍 بلد المنشأ: ${product.origin}\n` : ''}📦 الحجم/العبوة: ${pack?.name || 'الأساسي'}
+💰 سعر المستهلك: *${formatCurrency(currentPrices.retail)}*
+📈 حالة السعر: ${currentPrices.trend === 'up' ? 'مرتفع 🔺' : currentPrices.trend === 'down' ? 'منخفض 🔻' : 'مستقر 🔹'}
+📆 آخر تحديث: ${product.lastUpdatedAt ? format(new Date(product.lastUpdatedAt.seconds * 1000), 'd MMMM yyyy', { locale: ar }) : 'مؤخراً'}
+
+🇾🇪 المبادرة الوطنية لرقابة أسعار السلع - وزارة الاقتصاد والصناعة والاستثمار.`;
+    const shareUrl = window.location.origin;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl
+        });
+      } catch (err) {
+        console.log('Share API canceled or failed:', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareTitle}\n\n${shareText}\n\nرابط المنصة: ${shareUrl}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch (err) {
+        console.error('Clipboard fallback failed:', err);
+      }
+    }
+  };
+
   return (
     <motion.div
       layout
@@ -62,13 +111,84 @@ export function ProductCard({ product }: ProductCardProps) {
             </div>
             <h3 className="font-display font-bold text-base leading-tight truncate text-neutral-800 dark:text-neutral-100">{product.name}</h3>
             
+            {/* Consumer ratings link and average indicator */}
+            <button
+              type="button"
+              onClick={() => setShowReviews(true)}
+              className="flex items-center gap-1.5 mt-1 hover:text-primary-500 transition-all text-right group/rate"
+            >
+              <div className="flex items-center text-amber-400">
+                {ratingStats.count > 0 ? (
+                  <>
+                    <Star size={11} className="fill-amber-400" />
+                    <span className="text-[11px] font-black text-neutral-700 dark:text-neutral-300 mr-1 font-accent leading-none group-hover/rate:text-primary-500">
+                      {ratingStats.average.toFixed(1)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Star size={11} className="text-neutral-300 dark:text-neutral-600" />
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-bold mr-1 leading-none">
+                      لا توجد تقييمات
+                    </span>
+                  </>
+                )}
+              </div>
+              {ratingStats.count > 0 && (
+                <span className="text-[9px] text-neutral-400 dark:text-neutral-500 font-black">
+                  ({ratingStats.count} {ratingStats.count >= 3 && ratingStats.count <= 10 ? 'تقييمات' : 'تقييم'})
+                </span>
+              )}
+              <span className="text-[9px] text-primary-600 dark:text-primary-400 font-black hover:underline bg-primary-50 dark:bg-primary-500/10 px-1.5 py-0.5 rounded-md mr-1.5">
+                شاهد واكتب تقييماً
+              </span>
+            </button>
+            
             {brand && (
-              <div className="flex flex-col gap-2 mt-1.5">
+              <div className="flex flex-col gap-1.5 mt-1.5 font-sans">
                 <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
                   <Tag size={10} className="text-primary-500" />
                   <span className="text-[10px] font-medium">العلامة التجارية:</span>
                   <span className="text-[10px] font-semibold text-neutral-900 dark:text-white">{brand.name}</span>
                 </div>
+                {product.origin && (
+                  <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+                    <span className="text-[10px]" role="img" aria-label="origin">🌍</span>
+                    <span className="text-[10px] font-medium">بلد المنشأ:</span>
+                    <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">{product.origin}</span>
+                  </div>
+                )}
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowReportForm(true)}
+                  className="w-fit flex items-center gap-2 px-4 py-2 mt-1 rounded-xl bg-red-500 dark:bg-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-600 transition-all active:scale-95 group/btn"
+                >
+                  <AlertTriangle size={14} className="group-hover/btn:animate-bounce" />
+                  <span className="text-[11px] font-black uppercase tracking-tight">إبلاغ عن سعر</span>
+                </motion.button>
+              </div>
+            )}
+            {!brand && product.origin && (
+              <div className="flex flex-col gap-1.5 mt-1.5 font-sans">
+                <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+                  <span className="text-[10px]" role="img" aria-label="origin">🌍</span>
+                  <span className="text-[10px] font-medium">بلد المنشأ:</span>
+                  <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">{product.origin}</span>
+                </div>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowReportForm(true)}
+                  className="w-fit flex items-center gap-2 px-4 py-2 mt-1 rounded-xl bg-red-500 dark:bg-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-600 transition-all active:scale-95 group/btn"
+                >
+                  <AlertTriangle size={14} className="group-hover/btn:animate-bounce" />
+                  <span className="text-[11px] font-black uppercase tracking-tight">إبلاغ عن سعر</span>
+                </motion.button>
+              </div>
+            )}
+            {!brand && !product.origin && (
+              <div className="flex flex-col gap-1.5 mt-1.5">
                 <motion.button 
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -160,9 +280,34 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
       </div>
 
+      {/* Share Action Button */}
+      <div className="mt-1">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleShare}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all font-black text-[11px] border border-dashed",
+            copied
+              ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+              : "bg-primary-500/[0.04] dark:bg-white/[0.04] text-primary-600 dark:text-primary-400 border-primary-500/10 hover:bg-primary-500/[0.08]"
+          )}
+        >
+          {copied ? <Check size={13} className="stroke-[3]" /> : <Share2 size={13} />}
+          <span>{copied ? 'تم نسخ التفاصيل!' : 'مشاركة تفاصيل السعر'}</span>
+        </motion.button>
+      </div>
+
       <ReportForm 
         isOpen={showReportForm} 
         onClose={() => setShowReportForm(false)} 
+      />
+
+      <ProductReviews
+        productId={product.id}
+        productName={product.name}
+        isOpen={showReviews}
+        onClose={() => setShowReviews(false)}
       />
     </motion.div>
   );

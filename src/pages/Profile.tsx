@@ -23,7 +23,8 @@ import {
   Eye,
   EyeOff,
   Moon,
-  Sun
+  Sun,
+  PhoneCall
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -475,6 +476,12 @@ export function Profile() {
         <div className="space-y-4">
           <h3 className="text-xs font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-[0.2em] px-2 mb-2">المساعدة والدعم</h3>
           <div className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-white/5 rounded-[32px] overflow-hidden shadow-sm">
+            <MenuRow 
+              icon={<PhoneCall size={18} className="text-emerald-500 dark:text-emerald-400" />} 
+              label="تواصل معنا للدعم (واتساب)" 
+              href="https://wa.me/967775511113" 
+              isLast={false} 
+            />
             <MenuRow icon={<AlertCircle size={18} />} label="مركز الدعم والمساعدة" isLast={false} />
             <MenuRow icon={<ShieldCheck size={18} />} label="سياسة الخصوصية" isLast={true} />
           </div>
@@ -528,18 +535,33 @@ function InfoRow({ icon, label, value, isLast }: { icon: React.ReactNode; label:
   );
 }
 
-function MenuRow({ icon, label, isLast }: { icon: React.ReactNode; label: string; isLast: boolean }) {
-  return (
-    <div className={cn(
-      "flex items-center justify-between p-5 group hover:bg-neutral-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer",
-      !isLast && "border-b border-neutral-50 dark:border-white/5"
-    )}>
-      <div className="flex items-center gap-4">
-        <div className="text-neutral-400 group-hover:text-primary-500 transition-colors">
-          {icon}
-        </div>
-        <span className="text-xs font-black text-neutral-800 dark:text-white uppercase tracking-widest">{label}</span>
+function MenuRow({ icon, label, isLast, href, onClick }: { icon: React.ReactNode; label: string; isLast: boolean; href?: string; onClick?: () => void }) {
+  const content = (
+    <div className="flex items-center gap-4">
+      <div className="text-neutral-400 group-hover:text-primary-500 transition-colors">
+        {icon}
       </div>
+      <span className="text-xs font-black text-neutral-800 dark:text-white uppercase tracking-widest">{label}</span>
+    </div>
+  );
+
+  const wrapperClass = cn(
+    "flex items-center justify-between p-5 group hover:bg-neutral-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer text-right w-full",
+    !isLast && "border-b border-neutral-50 dark:border-white/5"
+  );
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={wrapperClass}>
+        {content}
+        <ChevronLeft size={16} className="text-neutral-300 group-hover:text-neutral-500 transition-all rotate-180" />
+      </a>
+    );
+  }
+
+  return (
+    <div onClick={onClick} className={wrapperClass}>
+      {content}
       <ChevronLeft size={16} className="text-neutral-300 group-hover:text-neutral-500 transition-all rotate-180" />
     </div>
   );

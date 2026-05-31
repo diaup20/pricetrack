@@ -56,6 +56,7 @@ export interface Product {
   trend: Trend;
   imageUrl?: string;
   description?: string;
+  origin?: string;
   createdAt: any;
   lastUpdatedAt: any;
   variants?: ProductVariant[];
@@ -115,5 +116,34 @@ export interface Report {
   description: string;
   imageUrl?: string;
   status: ReportStatus;
+  createdAt: any;
+}
+
+export interface Review {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string;
+  rating: number; // 1-5
+  comment: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
+export interface AppVisit {
+  id: string;
+  userId: string;
+  governorateId: string;
+  governorateName: string;
+  userAgent?: string;
+  createdAt: any;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: 'new_product' | 'price_update' | 'new_category' | 'system';
+  referenceId?: string;
   createdAt: any;
 }
